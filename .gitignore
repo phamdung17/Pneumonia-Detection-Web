@@ -1,0 +1,26 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Env / local db
+backend/.env
+backend/app.db
+
+# Runtime artifacts
+backend/logs/*
+!backend/logs/.gitkeep
+backend/reports/*
+!backend/reports/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Test data and model weights
+backend/Data_test/*
+!backend/Data_test/.gitkeep
+backend/weights/*
+!backend/weights/.gitkeep
+
+# Alembic cache or misc
+.pytest_cache/
