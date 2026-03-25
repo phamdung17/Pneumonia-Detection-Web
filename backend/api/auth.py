@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 
@@ -10,15 +10,37 @@ from backend.auth.jwt import create_access_token, create_refresh_token
 from backend.auth.password import hash_password, verify_password
 from backend.config import get_settings
 from backend.database.connection import get_db
-from backend.database.crud import create_audit_log, create_stored_refresh_token, get_user_by_username, get_valid_refresh_token, revoke_refresh_token
-from backend.database.models import User
-from backend.schemas import ChangePasswordRequest, LoginRequest, MessageResponse, RefreshRequest, TokenResponse, UserRead
-from backend.utils.errors import AuthenticationAppError, PermissionAppError
+from backend.database.crud import create_audit_log, create_stored_refresh_token, create_user, get_user_by_username, get_valid_refresh_token, revoke_refresh_token
+from backend.database.models import User, UserRole
+from backend.schemas import ChangePasswordRequest, LoginRequest, MessageResponse, RefreshRequest, TokenResponse, UserRead, UserRegister
+from backend.utils.errors import AuthenticationAppError, PermissionAppError, ValidationAppError
 from backend.utils.rate_limit import check_rate_limit
 
 
 router = APIRouter(prefix='/api/auth', tags=['auth'])
 settings = get_settings()
+
+
+@router.post('/register', response_model=TokenResponse)
+def register(payload: UserRegister, request: Request, db: Session = Depends(get_db)) -> TokenResponse:
+    check_rate_limit(f'ratelimit:register:{get_client_ip(request)}', 5, 60)
+    if payload.role not in {UserRole.doctor, UserRole.technician}:
+        raise ValidationAppError('Only doctor or technician accounts can be registered here')
+    if get_user_by_username(db, payload.username):
+        raise ValidationAppError('Username already exists')
+    user = create_user(
+        db,
+        username=payload.username,
+        password_hash=hash_password(payload.password),
+        full_name=payload.full_name,
+        role=payload.role,
+        department=payload.department,
+    )
+    access_token = create_access_token(user.id, user.role.value)
+    refresh_token = create_refresh_token()
+    create_stored_refresh_token(db, user_id=user.id, token=refresh_token, expires_in_days=settings.jwt_refresh_expire_days)
+    create_audit_log(db, user_id=user.id, action='register', target_type='user', target_id=str(user.id), ip_address=get_client_ip(request), user_agent=request.headers.get('user-agent'))
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token, user=UserRead.model_validate(user))
 
 
 @router.post('/login', response_model=TokenResponse)

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 
@@ -19,6 +19,14 @@ class UserRead(BaseModel):
 
 
 class UserCreate(BaseModel):
+    username: str
+    password: str
+    full_name: str
+    role: UserRole
+    department: str | None = None
+
+
+class UserRegister(BaseModel):
     username: str
     password: str
     full_name: str
