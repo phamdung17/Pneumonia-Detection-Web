@@ -12,7 +12,7 @@ settings = get_settings()
 JPEG_MAGIC = b'\xff\xd8\xff'
 PNG_MAGIC = b'\x89PNG'
 ALLOWED_TYPES = {'image/jpeg': '.jpg', 'image/png': '.png'}
-ALLOWED_ASSETS = {'original.jpg', 'original.png', 'cropped.jpg', 'heatmap_dn.jpg', 'heatmap_eff.jpg', 'lung_mask.jpg', 'bbox_overlay.jpg'}
+ALLOWED_ASSETS = {'original.jpg', 'original.png', 'heatmap.jpg'}
 
 
 async def save_upload_file(file: UploadFile, task_id: str) -> tuple[str, str]:

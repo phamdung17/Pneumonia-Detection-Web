@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from backend.database.models import DiseaseType, EnsembleStatus, PredictionLabel, ProcessingStatus, UserRole
+from backend.database.models import ProcessingStatus, UserRole
 
 
 class UserRead(BaseModel):
@@ -65,48 +65,18 @@ class MessageResponse(BaseModel):
     message: str
 
 
-class PredictionStage1(BaseModel):
-    prediction: PredictionLabel | None = None
-    ensemble_status: EnsembleStatus | None = None
-    confidence: float | None = None
-    prob_dn: float | None = None
-    prob_eff: float | None = None
-
-
-class PredictionStage2(BaseModel):
-    disease_type: DiseaseType | None = None
-    bacterial_prob: float | None = None
-    viral_prob: float | None = None
-    covid_prob: float | None = None
-
-
-class VisualizationBBox(BaseModel):
-    x1: int | None = None
-    y1: int | None = None
-    x2: int | None = None
-    y2: int | None = None
-
-
-class PredictionVisualization(BaseModel):
-    heatmap_dn_url: str | None = None
-    heatmap_eff_url: str | None = None
-    lung_mask_url: str | None = None
-    bbox: VisualizationBBox
-    lesion_pct: float | None = None
-
-
 class PredictionResult(BaseModel):
     id: int
     task_id: str
     status: ProcessingStatus
-    created_at: datetime
-    completed_at: datetime | None = None
-    processing_time_ms: int | None = None
-    stage1: PredictionStage1
-    stage2: PredictionStage2
-    visualization: PredictionVisualization
+    prediction: str | None = None
+    confidence: float | None = None
+    heatmap_url: str | None = None
     doctor_note: str | None = None
     doctor_confirmed: bool | None = None
+    processing_time_ms: int | None = None
+    created_at: datetime
+    completed_at: datetime | None = None
 
 
 class NoteRequest(BaseModel):

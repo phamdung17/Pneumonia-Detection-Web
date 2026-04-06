@@ -49,11 +49,12 @@ def create_user(db: Session, *, username: str, password_hash: str, full_name: st
     return user
 
 
-def create_audit_log(db: Session, *, user_id: int | None, action: str, target_type: str, target_id: str | None = None, ip_address: str | None = None, user_agent: str | None = None, detail: dict | None = None) -> models.AuditLog:
+def create_audit_log(db: Session, *, user_id: int | None, action: str, target_type: str, target_id: str | None = None, ip_address: str | None = None, user_agent: str | None = None, detail: dict | None = None, commit: bool = True) -> models.AuditLog:
     log = models.AuditLog(user_id=user_id, action=action, target_type=target_type, target_id=target_id, ip_address=ip_address, user_agent=user_agent, detail=detail)
     db.add(log)
-    db.commit()
-    db.refresh(log)
+    if commit:
+        db.commit()
+        db.refresh(log)
     return log
 
 

@@ -3,12 +3,18 @@
 from pathlib import Path
 from time import perf_counter
 
+import numpy as np
 import torch
 import torch.nn as nn
 from torchvision import models
 
 from backend.config import BASE_DIR
-from backend.utils.logging import performance_logger
+from backend.utils.logging import error_logger, performance_logger
+
+try:
+    import onnxruntime as ort
+except Exception:  # pragma: no cover - optional dependency in local dev
+    ort = None
 
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -21,144 +27,109 @@ def _disable_inplace_relu(module: nn.Module) -> None:
             child.inplace = False
 
 
-
-class DoubleConv(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int) -> None:
+class DenseNetClassifier(nn.Module):
+    def __init__(self) -> None:
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
+        self.model = models.densenet121(weights=None)
+        self.model.classifier = nn.Sequential(
+            nn.Identity(),
+            nn.Dropout(p=0.25),
+            nn.Identity(),
+            nn.Linear(1024, 256),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
+            nn.Dropout(p=0.25),
+            nn.Linear(256, 1),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
-
-
-class UNet(nn.Module):
-    def __init__(self, in_channels: int = 3, out_channels: int = 1, features: list[int] | None = None) -> None:
-        super().__init__()
-        feats = features or [64, 128, 256, 512]
-        self.downs = nn.ModuleList()
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        current = in_channels
-        for feat in feats:
-            self.downs.append(DoubleConv(current, feat))
-            current = feat
-        self.bottleneck = DoubleConv(feats[-1], feats[-1] * 2)
-        self.ups = nn.ModuleList()
-        rev_feats = list(reversed(feats))
-        up_in = feats[-1] * 2
-        for feat in rev_feats:
-            self.ups.append(nn.ConvTranspose2d(up_in, feat, kernel_size=2, stride=2))
-            self.ups.append(DoubleConv(feat * 2, feat))
-            up_in = feat
-        self.final = nn.Conv2d(feats[0], out_channels, kernel_size=1)
+    @property
+    def features(self) -> nn.Module:
+        return self.model.features
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        skips: list[torch.Tensor] = []
-        for down in self.downs:
-            x = down(x)
-            skips.append(x)
-            x = self.pool(x)
-        x = self.bottleneck(x)
-        skips = skips[::-1]
-        for idx in range(0, len(self.ups), 2):
-            x = self.ups[idx](x)
-            skip = skips[idx // 2]
-            if x.shape[-2:] != skip.shape[-2:]:
-                x = torch.nn.functional.interpolate(x, size=skip.shape[-2:], mode='bilinear', align_corners=False)
-            x = torch.cat([skip, x], dim=1)
-            x = self.ups[idx + 1](x)
-        return self.final(x)
-
-
-def build_densenet(out_features: int) -> nn.Module:
-    model = models.densenet121(weights=None)
-    model.classifier = nn.Sequential(
-        nn.Identity(),
-        nn.Dropout(p=0.25),
-        nn.Identity(),
-        nn.Linear(1024, 256),
-        nn.ReLU(inplace=True),
-        nn.Dropout(p=0.25),
-        nn.Linear(256, out_features),
-    )
-    return model
-
-
-def build_efficientnet() -> nn.Module:
-    model = models.efficientnet_b0(weights=None)
-    model.classifier = nn.Sequential(
-        nn.Dropout(p=0.2),
-        nn.Linear(1280, 256),
-        nn.ReLU(inplace=True),
-        nn.Dropout(p=0.25),
-        nn.Linear(256, 1),
-    )
-    return model
+        return self.model(x)
 
 
 class ModelRegistry:
     def __init__(self) -> None:
         self.loaded = False
         self.device = DEVICE
-        self.models: dict[str, nn.Module | None] = {
-            'unet': None,
-            'densenet_t1': None,
-            'effnet_t1': None,
-            'densenet_t2': None,
+        self.onnx_session: ort.InferenceSession | None = None
+        self.torch_model: DenseNetClassifier | None = None
+        self.model_status = {
+            'onnx': False,
+            'torch_gradcam': False,
         }
-        self.model_status = {key: False for key in self.models}
 
-    def _load_state(self, model: nn.Module, path: Path) -> nn.Module:
-        state_dict = torch.load(path, map_location='cpu')
+    def load(self) -> dict[str, bool]:
+        if self.model_status['onnx'] and self.model_status['torch_gradcam']:
+            self.loaded = True
+            return dict(self.model_status)
+        start = perf_counter()
+        self._load_onnx()
+        self._load_torch_gradcam()
+        self.loaded = self.model_status['onnx'] and self.model_status['torch_gradcam']
+        performance_logger.info(
+            'models_loaded duration_ms=%s device=%s onnx=%s gradcam=%s',
+            int((perf_counter() - start) * 1000),
+            self.device,
+            self.model_status['onnx'],
+            self.model_status['torch_gradcam'],
+        )
+        return dict(self.model_status)
+
+    def _load_onnx(self) -> None:
+        if self.onnx_session is not None:
+            self.model_status['onnx'] = True
+            return
+        if ort is None:
+            error_logger.error('onnxruntime_not_available')
+            self.model_status['onnx'] = False
+            return
+        onnx_path = WEIGHTS_DIR / 'densenet_int8.onnx'
+        if not onnx_path.exists():
+            error_logger.error('onnx_model_missing path=%s', onnx_path)
+            self.model_status['onnx'] = False
+            return
+        providers = ['CPUExecutionProvider']
+        available = set(ort.get_available_providers())
+        if 'CUDAExecutionProvider' in available:
+            providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+        self.onnx_session = ort.InferenceSession(str(onnx_path), providers=providers)
+        self.model_status['onnx'] = True
+
+    def _load_torch_gradcam(self) -> None:
+        if self.torch_model is not None:
+            self.model_status['torch_gradcam'] = True
+            return
+        weights_path = WEIGHTS_DIR / 'densenet_t1_best.pth'
+        if not weights_path.exists():
+            error_logger.error('torch_gradcam_weights_missing path=%s', weights_path)
+            self.model_status['torch_gradcam'] = False
+            return
+        model = DenseNetClassifier()
+        state_dict = torch.load(weights_path, map_location='cpu')
         model.load_state_dict(state_dict, strict=True)
         _disable_inplace_relu(model)
         model.to(self.device)
         model.eval()
-        return model
-
-    def load(self) -> dict[str, bool]:
-        if self.loaded:
-            return self.model_status
-        start = perf_counter()
-        self.models['unet'] = self._load_state(UNet(), WEIGHTS_DIR / 'lung_unet_best.pth')
-        self.model_status['unet'] = True
-        self.models['densenet_t1'] = self._load_state(build_densenet(1), WEIGHTS_DIR / 'densenet_t1_best.pth')
-        self.model_status['densenet_t1'] = True
-        self.models['effnet_t1'] = self._load_state(build_efficientnet(), WEIGHTS_DIR / 'effnet_t1_best.pth')
-        self.model_status['effnet_t1'] = True
-        self.models['densenet_t2'] = self._load_state(build_densenet(3), WEIGHTS_DIR / 'densenet_t2_best.pth')
-        self.model_status['densenet_t2'] = True
-        self._warmup()
-        self.loaded = True
-        performance_logger.info('models_loaded duration_ms=%s device=%s', int((perf_counter() - start) * 1000), self.device)
-        return self.model_status
-
-    def _warmup(self) -> None:
-        x = torch.zeros(1, 3, 224, 224, device=self.device)
-        with torch.inference_mode():
-            assert self.models['unet'] is not None
-            assert self.models['densenet_t1'] is not None
-            assert self.models['effnet_t1'] is not None
-            assert self.models['densenet_t2'] is not None
-            self.models['unet'](x)
-            self.models['densenet_t1'](x)
-            self.models['effnet_t1'](x)
-            self.models['densenet_t2'](x)
-
-    def get(self, key: str) -> nn.Module:
-        model = self.models.get(key)
-        if model is None:
-            raise RuntimeError(f'Model {key} is not loaded')
-        return model
+        self.torch_model = model
+        self.model_status['torch_gradcam'] = True
 
     def health(self) -> dict[str, bool]:
-        return dict(self.model_status)
+        return {
+            'loaded': self.model_status['onnx'] and self.model_status['torch_gradcam'],
+            'onnx': self.model_status['onnx'],
+            'torch_gradcam': self.model_status['torch_gradcam'],
+        }
+
+    def inference_test_ms(self) -> int | None:
+        if self.onnx_session is None:
+            return None
+        input_name = self.onnx_session.get_inputs()[0].name
+        dummy = np.zeros((1, 3, 224, 224), dtype=np.float32)
+        start = perf_counter()
+        self.onnx_session.run(None, {input_name: dummy})
+        return int((perf_counter() - start) * 1000)
 
 
 model_registry = ModelRegistry()

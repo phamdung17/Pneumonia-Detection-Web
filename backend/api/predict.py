@@ -8,10 +8,11 @@ from fastapi import APIRouter, Depends, File, Request, UploadFile, WebSocket, We
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
-from backend.auth.dependencies import get_client_ip, get_current_user
+from backend.auth.dependencies import get_current_user
 from backend.database.connection import get_db
 from backend.database.crud import create_batch_item, create_batch_job, create_prediction, get_prediction_by_id, get_prediction_by_task_id
 from backend.database.models import BatchJob, ProcessingStatus, User
+from backend.models.pipeline import ensure_models_ready
 from backend.schemas import BatchItemRead, BatchProgressResponse, BatchResponse, ConfirmRequest, MessageResponse, NoteRequest, PredictionResult
 from backend.utils.errors import NotFoundAppError
 from backend.utils.file import resolve_asset_path, save_upload_file
@@ -26,56 +27,42 @@ router = APIRouter(prefix='/api/predict', tags=['predict'])
 
 def serialize_prediction(prediction) -> PredictionResult:
     task_dir = Path(prediction.file_path).parent
+    heatmap_url = None
+    if (task_dir / 'heatmap.jpg').exists():
+        heatmap_url = f'/static/{prediction.task_id}/heatmap.jpg'
+    elif prediction.heatmap_dn_path:
+        heatmap_url = f'/static/{prediction.task_id}/heatmap.jpg'
+
     return PredictionResult(
         id=prediction.id,
         task_id=prediction.task_id,
         status=prediction.status,
-        created_at=prediction.created_at,
-        completed_at=prediction.completed_at,
-        processing_time_ms=prediction.processing_time_ms,
-        stage1={
-            'prediction': prediction.prediction,
-            'ensemble_status': prediction.ensemble_status,
-            'confidence': prediction.confidence,
-            'prob_dn': prediction.prob_dn,
-            'prob_eff': prediction.prob_eff,
-        },
-        stage2={
-            'disease_type': prediction.disease_type,
-            'bacterial_prob': prediction.bacterial_prob,
-            'viral_prob': prediction.viral_prob,
-            'covid_prob': prediction.covid_prob,
-        },
-        visualization={
-            'heatmap_dn_url': f'/static/{prediction.task_id}/heatmap_dn.jpg' if (task_dir / 'heatmap_dn.jpg').exists() else None,
-            'heatmap_eff_url': f'/static/{prediction.task_id}/heatmap_eff.jpg' if (task_dir / 'heatmap_eff.jpg').exists() else None,
-            'lung_mask_url': f'/static/{prediction.task_id}/lung_mask.jpg' if (task_dir / 'lung_mask.jpg').exists() else None,
-            'bbox': {
-                'x1': prediction.bbox_x1,
-                'y1': prediction.bbox_y1,
-                'x2': prediction.bbox_x2,
-                'y2': prediction.bbox_y2,
-            },
-            'lesion_pct': prediction.lesion_pct,
-        },
+        prediction=prediction.prediction.value if prediction.prediction else None,
+        confidence=prediction.confidence,
+        heatmap_url=heatmap_url,
         doctor_note=prediction.doctor_note,
         doctor_confirmed=prediction.doctor_confirmed,
+        processing_time_ms=prediction.processing_time_ms,
+        created_at=prediction.created_at,
+        completed_at=prediction.completed_at,
     )
 
 
 @router.post('/', response_model=dict)
 async def submit_prediction(request: Request, file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     check_rate_limit(f'ratelimit:predict:{current_user.id}', 20, 60)
+    ensure_models_ready()
     task_id = str(uuid4())
     filename, file_path = await save_upload_file(file, task_id)
     prediction = create_prediction(db, user_id=current_user.id, task_id=task_id, filename=filename, file_path=file_path)
     asyncio.create_task(run_prediction_task(prediction.id, task_id))
-    return {'task_id': task_id, 'position': 1}
+    return {'task_id': task_id}
 
 
 @router.post('/batch', response_model=BatchResponse)
 async def submit_batch(request: Request, files: list[UploadFile] = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> BatchResponse:
     check_rate_limit(f'ratelimit:batch:{current_user.id}', 5, 60)
+    ensure_models_ready()
     batch = create_batch_job(db, user_id=current_user.id, job_name=f'batch-{uuid4()}', total=len(files))
     task_ids: list[str] = []
     for index, file in enumerate(files, start=1):
