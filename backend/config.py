@@ -1,4 +1,4 @@
-﻿from functools import lru_cache
+from functools import lru_cache
 from pathlib import Path
 from typing import List
 
@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     app_name: str = 'Pneumonia Detection API'
     environment: str = 'development'
     debug: bool = True
+    enable_mock_predict: bool = True
 
     mysql_host: str = 'localhost'
     mysql_port: int = 3306
@@ -39,7 +40,7 @@ class Settings(BaseSettings):
     cors_origins: str = 'http://localhost:5173'
     task_timeout_seconds: int = 120
 
-    @field_validator('debug', mode='before')
+    @field_validator('debug', 'enable_mock_predict', mode='before')
     @classmethod
     def parse_debug(cls, value):
         if isinstance(value, bool):

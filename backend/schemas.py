@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 
@@ -65,18 +65,36 @@ class MessageResponse(BaseModel):
     message: str
 
 
+class PredictionTypeProbabilities(BaseModel):
+    BACTERIAL: float | None = None
+    VIRAL: float | None = None
+    COVID: float | None = None
+
+
+class PredictionTypeResult(BaseModel):
+    label: str | None = None
+    probs: PredictionTypeProbabilities | None = None
+
+
 class PredictionResult(BaseModel):
     id: int
     task_id: str
     status: ProcessingStatus
+    patient_name: str | None = None
+    patient_age: int | None = None
+    patient_gender: str | None = None
+    technician_name: str | None = None
+    performed_at: datetime | None = None
     prediction: str | None = None
     confidence: float | None = None
+    original_url: str | None = None
     heatmap_url: str | None = None
     doctor_note: str | None = None
     doctor_confirmed: bool | None = None
     processing_time_ms: int | None = None
     created_at: datetime
     completed_at: datetime | None = None
+    type: PredictionTypeResult | None = None
 
 
 class NoteRequest(BaseModel):
@@ -85,6 +103,14 @@ class NoteRequest(BaseModel):
 
 class ConfirmRequest(BaseModel):
     confirmed: bool
+
+
+class PatientInfoRequest(BaseModel):
+    patient_name: str | None = None
+    patient_age: int | None = None
+    patient_gender: str | None = None
+    technician_name: str | None = None
+    performed_at: datetime | None = None
 
 
 class PaginatedPredictions(BaseModel):

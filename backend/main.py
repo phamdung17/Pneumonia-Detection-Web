@@ -1,20 +1,16 @@
-﻿from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy.orm import Session
 
 from backend.api import admin, auth, health, history, predict, stats
-from backend.auth.dependencies import get_current_user
 from backend.auth.jwt import decode_access_token
 from backend.config import get_settings
-from backend.database.connection import Base, engine, get_db
-from backend.database.crud import get_prediction_by_task_id
-from backend.database.models import User
+from backend.database.connection import Base, engine
 from backend.models.loader import model_registry
-from backend.utils.errors import AppError, NotFoundAppError, error_payload
+from backend.utils.errors import AppError, error_payload
 from backend.utils.file import resolve_asset_path
 from backend.utils.logging import error_logger, request_logger
 from backend.utils.rate_limit import check_rate_limit
@@ -68,12 +64,14 @@ async def generic_handler(_: Request, exc: Exception) -> JSONResponse:
 
 
 @app.get('/static/{task_id}/{filename}')
-def protected_static(task_id: str, filename: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> FileResponse:
-    prediction = get_prediction_by_task_id(db, task_id)
-    if not prediction or prediction.user_id != current_user.id:
-        raise NotFoundAppError('Prediction not found')
+def public_static(task_id: str, filename: str) -> FileResponse:
     asset_path = resolve_asset_path(task_id, filename)
     return FileResponse(path=asset_path)
+
+
+@app.websocket('/ws/{task_id}')
+async def prediction_ws_alias(websocket: WebSocket, task_id: str) -> None:
+    await predict.prediction_ws(websocket, task_id)
 
 
 app.include_router(auth.router)
