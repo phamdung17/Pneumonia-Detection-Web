@@ -24,8 +24,8 @@ settings = get_settings()
 @router.post('/register', response_model=TokenResponse)
 def register(payload: UserRegister, request: Request, db: Session = Depends(get_db)) -> TokenResponse:
     check_rate_limit(f'ratelimit:register:{get_client_ip(request)}', 5, 60)
-    if payload.role not in {UserRole.doctor, UserRole.technician}:
-        raise ValidationAppError('Only doctor or technician accounts can be registered here')
+    if payload.role not in {UserRole.admin, UserRole.client}:
+        raise ValidationAppError('Only admin or client roles are allowed for registration')
     if get_user_by_username(db, payload.username):
         raise ValidationAppError('Username already exists')
     user = create_user(

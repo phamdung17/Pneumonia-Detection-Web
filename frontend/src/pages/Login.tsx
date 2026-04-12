@@ -6,10 +6,10 @@ import {
   Lock, 
   ArrowRight, 
   ShieldCheck, 
-  Stethoscope,
-  ChevronLeft
+  Stethoscope
 } from "lucide-react";
 import { useAuthStore } from "../stores/authStore";
+import toast from "react-hot-toast";
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -23,12 +23,15 @@ const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      login(formData);
+    try {
+      await login(formData);
+      toast.success("Đăng nhập thành công");
       setIsLoading(false);
       navigate("/predict");
-    }, 1000);
+    } catch {
+      setIsLoading(false);
+      toast.error("Đăng nhập thất bại");
+    }
   };
 
   return (

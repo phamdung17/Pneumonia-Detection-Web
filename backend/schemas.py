@@ -30,7 +30,7 @@ class UserRegister(BaseModel):
     username: str
     password: str
     full_name: str
-    role: UserRole
+    role: UserRole = UserRole.client
     department: str | None = None
 
 

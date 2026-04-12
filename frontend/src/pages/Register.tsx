@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
+import axios from "axios";
 import { 
   User,
   Mail, 
@@ -9,6 +10,8 @@ import {
   ShieldCheck, 
   UserCircle
 } from "lucide-react";
+import toast from "react-hot-toast";
+import api from "../api/axios";
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,17 +21,32 @@ const RegisterPage: React.FC = () => {
     username: "",
     email: "",
     password: "",
-    role: "doctor"
+    role: "client",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      await api.post("/api/auth/register", {
+        full_name: formData.fullName,
+        username: formData.username,
+        password: formData.password,
+        role: formData.role,
+        department: formData.email || null,
+      });
+      toast.success("Đăng ký thành công, vui lòng đăng nhập");
       setIsLoading(false);
       navigate("/login");
-    }, 1500);
+    } catch (error) {
+      setIsLoading(false);
+      if (axios.isAxiosError(error)) {
+        const message = error.response?.data?.detail?.message || error.response?.data?.message || "Đăng ký thất bại";
+        toast.error(message);
+      } else {
+        toast.error("Đăng ký thất bại");
+      }
+    }
   };
 
   return (
@@ -166,15 +184,14 @@ const RegisterPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Vai trò chuyên môn</label>
-              <select 
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Vai trò</label>
+              <select
                 className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all appearance-none"
                 value={formData.role}
-                onChange={(e) => setFormData({...formData, role: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as "admin" | "client" })}
               >
-                <option value="doctor">Bác sĩ Chẩn đoán</option>
-                <option value="technician">Kỹ thuật viên X-quang</option>
-                <option value="admin">Quản trị viên Hệ thống</option>
+                <option value="client">Client</option>
+                <option value="admin">Admin</option>
               </select>
             </div>
 

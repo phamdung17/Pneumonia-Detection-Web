@@ -16,6 +16,7 @@ class TimestampMixin:
 
 class UserRole(str, enum.Enum):
     admin = "admin"
+    client = "client"
     doctor = "doctor"
     technician = "technician"
 
@@ -51,7 +52,7 @@ class User(TimestampMixin, Base):
     username: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.technician, nullable=False)
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.client, nullable=False)
     department: Mapped[str | None] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     failed_login_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
