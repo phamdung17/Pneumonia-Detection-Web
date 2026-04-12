@@ -17,7 +17,7 @@ export default function TopBar() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             className="pl-10 pr-4 py-1.5 bg-slate-100 border-none rounded-full text-sm focus:ring-2 focus:ring-primary w-64 outline-none" 
-            placeholder="Search batch ID..." 
+            placeholder="Tim ma chan doan..." 
             type="text"
           />
         </div>

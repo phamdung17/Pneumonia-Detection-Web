@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, File, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from backend.auth.dependencies import get_current_user
 from backend.config import get_settings
 from backend.database.connection import get_db
-from backend.database.crud import create_batch_item, create_batch_job, create_prediction, get_prediction_by_id, get_prediction_by_task_id
-from backend.database.models import BatchJob, DiseaseType, PredictionLabel, ProcessingStatus, User
+from backend.database.crud import create_prediction, get_prediction_by_id, get_prediction_by_task_id
+from backend.database.models import DiseaseType, ProcessingStatus, User
 from backend.models.pipeline import ensure_models_ready
-from backend.schemas import BatchItemRead, BatchProgressResponse, BatchResponse, ConfirmRequest, MessageResponse, NoteRequest, PatientInfoRequest, PredictionResult, PredictionTypeProbabilities, PredictionTypeResult
+from backend.schemas import ConfirmRequest, MessageResponse, NoteRequest, PatientInfoRequest, PredictionResult, PredictionTypeProbabilities, PredictionTypeResult
 from backend.utils.errors import NotFoundAppError
 from backend.utils.file import resolve_asset_path, save_upload_file
 from backend.utils.pdf import build_prediction_pdf
@@ -31,30 +30,17 @@ router = APIRouter(prefix='/api/predict', tags=['predict'])
 settings = get_settings()
 
 
-def infer_disease_type(task_id: str, prediction: PredictionLabel, confidence: float | None) -> PredictionTypeResult:
-    if prediction != PredictionLabel.pneumonia:
-        return PredictionTypeResult(
-            label=DiseaseType.none.value,
-            probs=PredictionTypeProbabilities(BACTERIAL=0.0, VIRAL=0.0, COVID=0.0),
-        )
+def build_prediction_type(prediction) -> PredictionTypeResult | None:
+    if prediction.disease_type is None and prediction.bacterial_prob is None and prediction.viral_prob is None and prediction.covid_prob is None:
+        return None
 
-    digest = sha256(task_id.encode('utf-8')).digest()
-    raw = [digest[0] + 1, digest[1] + 1, digest[2] + 1]
-    total = float(sum(raw))
-    probs = [value / total for value in raw]
-    confidence_scale = max(min(confidence or 0.0, 1.0), 0.55)
-    scaled = [round(prob * confidence_scale, 4) for prob in probs]
-    scaled_total = sum(scaled) or 1.0
-    normalized = [round(value / scaled_total, 4) for value in scaled]
-
-    labels = ['BACTERIAL', 'VIRAL', 'COVID']
-    top_index = max(range(len(normalized)), key=lambda index: normalized[index])
+    label = prediction.disease_type.value if prediction.disease_type else None
     return PredictionTypeResult(
-        label=labels[top_index],
+        label=label,
         probs=PredictionTypeProbabilities(
-            BACTERIAL=normalized[0],
-            VIRAL=normalized[1],
-            COVID=normalized[2],
+            BACTERIAL=prediction.bacterial_prob,
+            VIRAL=prediction.viral_prob,
+            COVID=prediction.covid_prob,
         ),
     )
 
@@ -67,9 +53,7 @@ def serialize_prediction(prediction) -> PredictionResult:
     if Path(prediction.file_path).with_name('heatmap.jpg').exists() or prediction.heatmap_dn_path:
         heatmap_url = f'/static/{prediction.task_id}/heatmap.jpg'
 
-    type_result = None
-    if prediction.prediction:
-        type_result = infer_disease_type(prediction.task_id, prediction.prediction, prediction.confidence)
+    type_result = build_prediction_type(prediction)
 
     return PredictionResult(
         id=prediction.id,
@@ -143,7 +127,7 @@ def build_prediction_envelope(prediction) -> dict[str, Any]:
 
 
 @router.post('/', response_model=dict)
-async def submit_prediction(request: Request, file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+async def submit_prediction(file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     check_rate_limit(f'ratelimit:predict:{current_user.id}', 20, 60)
     ensure_models_ready()
     task_id = str(uuid4())
@@ -161,44 +145,6 @@ async def submit_prediction(request: Request, file: UploadFile = File(...), curr
     )
     asyncio.create_task(run_prediction_task(prediction.id, task_id))
     return {'task_id': task_id}
-
-
-@router.post('/batch', response_model=BatchResponse)
-async def submit_batch(request: Request, files: list[UploadFile] = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> BatchResponse:
-    check_rate_limit(f'ratelimit:batch:{current_user.id}', 5, 60)
-    ensure_models_ready()
-    batch = create_batch_job(db, user_id=current_user.id, job_name=f'batch-{uuid4()}', total=len(files))
-    task_ids: list[str] = []
-    for index, file in enumerate(files, start=1):
-        task_id = str(uuid4())
-        filename, file_path = await save_upload_file(file, task_id)
-        prediction = create_prediction(db, user_id=current_user.id, task_id=task_id, filename=filename, file_path=file_path)
-        create_batch_item(db, batch_id=batch.id, prediction_id=prediction.id, filename=filename, queue_position=index)
-        task_state_store.set(
-            task_id,
-            {
-                'stage': 'queued',
-                'status': 'queued',
-                'data': {'message': 'Task queued', 'progress': 0},
-                'predictionId': None,
-                'prediction_id': None,
-            },
-        )
-        task_ids.append(task_id)
-        asyncio.create_task(run_prediction_task(prediction.id, task_id))
-    batch.status = ProcessingStatus.processing
-    db.add(batch)
-    db.commit()
-    return BatchResponse(batch_id=batch.id, task_ids=task_ids)
-
-
-@router.get('/batch/{batch_id}', response_model=BatchProgressResponse)
-def get_batch(batch_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> BatchProgressResponse:
-    batch = db.get(BatchJob, batch_id)
-    if not batch or batch.user_id != current_user.id:
-        raise NotFoundAppError('Batch not found')
-    items = [BatchItemRead(id=item.id, prediction_id=item.prediction_id, filename=item.filename, status=item.status, queue_position=item.queue_position, error_message=item.error_message) for item in batch.items]
-    return BatchProgressResponse(completed=batch.completed, total=batch.total, items=items)
 
 
 @router.get('/{task_id}')

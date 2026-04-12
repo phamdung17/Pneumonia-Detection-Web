@@ -148,7 +148,7 @@ def generate_gradcam(file_path: str, rgb: np.ndarray) -> str:
         raise InferenceAppError(f'Grad-CAM generation failed: {exc}') from exc
 
 
-def run_pipeline(task_id: str, file_path: str) -> dict[str, str | float | PredictionLabel]:
+def run_pipeline(task_id: str, file_path: str) -> dict[str, str | float | int | PredictionLabel | None]:
     started_at = perf_counter()
     classification = classify_image(file_path)
     heatmap_path = generate_gradcam(file_path, classification['rgb'])
@@ -157,5 +157,16 @@ def run_pipeline(task_id: str, file_path: str) -> dict[str, str | float | Predic
     return {
         'prediction': classification['prediction'],
         'confidence': float(classification['confidence']),
-        'heatmap_path': heatmap_path,
+        # DenseNet confidence is the only calibrated probability available today.
+        'prob_dn': float(classification['confidence']),
+        'prob_eff': None,
+        'lesion_pct': None,
+        'bbox_x1': None,
+        'bbox_y1': None,
+        'bbox_x2': None,
+        'bbox_y2': None,
+        'dice_score': None,
+        'heatmap_dn_path': heatmap_path,
+        'heatmap_eff_path': None,
+        'lung_mask_path': None,
     }

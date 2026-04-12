@@ -159,6 +159,25 @@ export default function PredictiveAnalysis() {
     toast.success(confirmed ? "Prediction confirmed" : "Prediction rejected");
   };
 
+  const handleExportPDF = async () => {
+    if (!result) {
+      toast.error("Chua co ket qua de xuat PDF");
+      return;
+    }
+
+    try {
+      const response = await api.get(`/api/predict/${result.id}/export`, { responseType: "blob" });
+      const blobUrl = URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+      const anchor = document.createElement("a");
+      anchor.href = blobUrl;
+      anchor.download = `XR-${result.id}.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      toast.error("Khong the xuat PDF luc nay");
+    }
+  };
+
   const steps = [
     {
       id: "T1",
@@ -424,7 +443,11 @@ export default function PredictiveAnalysis() {
         </div>
       </div>
 
-      <button className="fixed bottom-8 right-8 w-14 h-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
+      <button
+        onClick={() => void handleExportPDF()}
+        disabled={!result}
+        className="fixed bottom-8 right-8 w-14 h-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 disabled:opacity-50 disabled:hover:scale-100"
+      >
         <Printer size={24} />
       </button>
 

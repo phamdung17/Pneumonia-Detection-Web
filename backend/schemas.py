@@ -119,26 +119,6 @@ class PaginatedPredictions(BaseModel):
     page: int
 
 
-class BatchItemRead(BaseModel):
-    id: int
-    prediction_id: int | None
-    filename: str
-    status: ProcessingStatus
-    queue_position: int | None = None
-    error_message: str | None = None
-
-
-class BatchProgressResponse(BaseModel):
-    completed: int
-    total: int
-    items: list[BatchItemRead]
-
-
-class BatchResponse(BaseModel):
-    batch_id: int
-    task_ids: list[str]
-
-
 class AuditLogRead(BaseModel):
     id: int
     user_id: int | None

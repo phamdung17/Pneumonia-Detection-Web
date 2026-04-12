@@ -32,7 +32,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origin_list, allo
 
 @app.middleware('http')
 async def request_guard(request: Request, call_next):
-    if request.url.path.startswith('/api/') and request.url.path not in {'/api/auth/login', '/api/predict/', '/api/predict/batch'}:
+    if request.url.path.startswith('/api/') and request.url.path not in {'/api/auth/login', '/api/predict/'}:
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
             try:

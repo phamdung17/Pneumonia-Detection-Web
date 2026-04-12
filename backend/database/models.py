@@ -60,7 +60,6 @@ class User(TimestampMixin, Base):
 
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user")
     predictions: Mapped[list["Prediction"]] = relationship(back_populates="user")
-    batch_jobs: Mapped[list["BatchJob"]] = relationship(back_populates="user")
     audit_logs: Mapped[list["AuditLog"]] = relationship(back_populates="user")
 
 
@@ -116,38 +115,6 @@ class Prediction(TimestampMixin, Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     user: Mapped["User"] = relationship(back_populates="predictions")
-    batch_items: Mapped[list["BatchItem"]] = relationship(back_populates="prediction")
-
-
-class BatchJob(TimestampMixin, Base):
-    __tablename__ = "batch_jobs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
-    job_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    total: Mapped[int] = mapped_column(Integer, nullable=False)
-    completed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    failed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    status: Mapped[ProcessingStatus] = mapped_column(Enum(ProcessingStatus), default=ProcessingStatus.queued, nullable=False)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
-
-    user: Mapped["User"] = relationship(back_populates="batch_jobs")
-    items: Mapped[list["BatchItem"]] = relationship(back_populates="batch", cascade="all, delete-orphan")
-
-
-class BatchItem(Base):
-    __tablename__ = "batch_items"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    batch_id: Mapped[int] = mapped_column(ForeignKey("batch_jobs.id"), nullable=False, index=True)
-    prediction_id: Mapped[int | None] = mapped_column(ForeignKey("predictions.id"), index=True)
-    filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    status: Mapped[ProcessingStatus] = mapped_column(Enum(ProcessingStatus), default=ProcessingStatus.queued, nullable=False)
-    queue_position: Mapped[int | None] = mapped_column(Integer)
-    error_message: Mapped[str | None] = mapped_column(Text)
-
-    batch: Mapped["BatchJob"] = relationship(back_populates="items")
-    prediction: Mapped["Prediction | None"] = relationship(back_populates="batch_items")
 
 
 class AuditLog(TimestampMixin, Base):

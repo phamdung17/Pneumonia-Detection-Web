@@ -150,22 +150,6 @@ def list_audit_logs(db: Session, *, page: int, limit: int, action: str | None = 
     return items, total
 
 
-def create_batch_job(db: Session, *, user_id: int, job_name: str, total: int) -> models.BatchJob:
-    job = models.BatchJob(user_id=user_id, job_name=job_name, total=total)
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-    return job
-
-
-def create_batch_item(db: Session, *, batch_id: int, prediction_id: int | None, filename: str, queue_position: int | None) -> models.BatchItem:
-    item = models.BatchItem(batch_id=batch_id, prediction_id=prediction_id, filename=filename, queue_position=queue_position)
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
-
-
 def count_queue_items(db: Session) -> dict:
     return {
         'pending': db.scalar(select(func.count()).select_from(models.Prediction).where(models.Prediction.status == models.ProcessingStatus.queued)) or 0,
