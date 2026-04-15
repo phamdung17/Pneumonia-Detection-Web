@@ -8,11 +8,11 @@ from fastapi import APIRouter, Depends, File, Request, UploadFile, WebSocket, We
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
-from backend.auth.dependencies import get_current_user
+from backend.auth.dependencies import get_current_user, require_roles
 from backend.config import get_settings
 from backend.database.connection import get_db
 from backend.database.crud import create_batch_item, create_batch_job, create_prediction, get_prediction_by_id, get_prediction_by_task_id
-from backend.database.models import BatchJob, DiseaseType, PredictionLabel, ProcessingStatus, User
+from backend.database.models import BatchJob, DiseaseType, PredictionLabel, ProcessingStatus, User, UserRole
 from backend.models.pipeline import ensure_models_ready
 from backend.schemas import BatchItemRead, BatchProgressResponse, BatchResponse, ConfirmRequest, MessageResponse, NoteRequest, PatientInfoRequest, PredictionResult, PredictionTypeProbabilities, PredictionTypeResult
 from backend.utils.errors import NotFoundAppError
@@ -212,7 +212,7 @@ def get_prediction(task_id: str, current_user: User = Depends(get_current_user),
 
 
 @router.put('/{prediction_id}/note', response_model=MessageResponse)
-def update_note(prediction_id: int, payload: NoteRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MessageResponse:
+def update_note(prediction_id: int, payload: NoteRequest, current_user: User = Depends(require_roles(UserRole.doctor)), db: Session = Depends(get_db)) -> MessageResponse:
     prediction = get_prediction_by_id(db, prediction_id)
     if not prediction or prediction.user_id != current_user.id:
         raise NotFoundAppError('Prediction not found')
@@ -223,7 +223,7 @@ def update_note(prediction_id: int, payload: NoteRequest, current_user: User = D
 
 
 @router.put('/{prediction_id}/confirm', response_model=MessageResponse)
-def confirm_prediction(prediction_id: int, payload: ConfirmRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MessageResponse:
+def confirm_prediction(prediction_id: int, payload: ConfirmRequest, current_user: User = Depends(require_roles(UserRole.doctor)), db: Session = Depends(get_db)) -> MessageResponse:
     prediction = get_prediction_by_id(db, prediction_id)
     if not prediction or prediction.user_id != current_user.id:
         raise NotFoundAppError('Prediction not found')

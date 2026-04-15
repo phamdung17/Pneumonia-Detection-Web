@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
@@ -19,37 +19,93 @@ def get_user_by_username(db: Session, username: str) -> models.User | None:
     return db.scalar(select(models.User).where(models.User.username == username))
 
 
+def get_user_by_email(db: Session, email: str) -> models.User | None:
+    return db.scalar(select(models.User).where(func.lower(models.User.email) == email.strip().lower()))
+
+
+def get_user_by_identifier(db: Session, identifier: str) -> models.User | None:
+    lowered = identifier.strip().lower()
+    return db.scalar(
+        select(models.User).where(
+            (models.User.username == identifier.strip()) | (func.lower(models.User.email) == lowered)
+        )
+    )
+
+
 def get_user_by_id(db: Session, user_id: int) -> models.User | None:
     return db.get(models.User, user_id)
 
 
-def list_users(db: Session, page: int = 1, limit: int = 20, search: str | None = None, role: str | None = None, is_active: bool | None = None) -> tuple[list[models.User], int]:
+def list_users(
+    db: Session,
+    page: int = 1,
+    limit: int = 20,
+    search: str | None = None,
+    role: str | None = None,
+    is_active: bool | None = None,
+    approval_status: str | None = None,
+) -> tuple[list[models.User], int]:
     stmt: Select[tuple[models.User]] = select(models.User)
     count_stmt = select(func.count()).select_from(models.User)
     if search:
         like = f'%{search}%'
-        stmt = stmt.where(models.User.username.like(like) | models.User.full_name.like(like))
-        count_stmt = count_stmt.where(models.User.username.like(like) | models.User.full_name.like(like))
+        criteria = models.User.username.like(like) | models.User.full_name.like(like) | models.User.email.like(like)
+        stmt = stmt.where(criteria)
+        count_stmt = count_stmt.where(criteria)
     if role:
         stmt = stmt.where(models.User.role == role)
         count_stmt = count_stmt.where(models.User.role == role)
     if is_active is not None:
         stmt = stmt.where(models.User.is_active == is_active)
         count_stmt = count_stmt.where(models.User.is_active == is_active)
+    if approval_status:
+        stmt = stmt.where(models.User.approval_status == approval_status)
+        count_stmt = count_stmt.where(models.User.approval_status == approval_status)
     total = db.scalar(count_stmt) or 0
     items = db.scalars(stmt.order_by(models.User.created_at.desc()).offset((page - 1) * limit).limit(limit)).all()
     return items, total
 
 
-def create_user(db: Session, *, username: str, password_hash: str, full_name: str, role: models.UserRole, department: str | None) -> models.User:
-    user = models.User(username=username, password_hash=password_hash, full_name=full_name, role=role, department=department)
+def create_user(
+    db: Session,
+    *,
+    username: str,
+    email: str,
+    password_hash: str,
+    full_name: str,
+    role: models.UserRole,
+    department: str | None,
+    approval_status: models.ApprovalStatus = models.ApprovalStatus.pending,
+    is_active: bool = False,
+) -> models.User:
+    user = models.User(
+        username=username,
+        email=email,
+        password_hash=password_hash,
+        full_name=full_name,
+        role=role,
+        department=department,
+        approval_status=approval_status,
+        is_active=is_active,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
 
 
-def create_audit_log(db: Session, *, user_id: int | None, action: str, target_type: str, target_id: str | None = None, ip_address: str | None = None, user_agent: str | None = None, detail: dict | None = None, commit: bool = True) -> models.AuditLog:
+def create_audit_log(
+    db: Session,
+    *,
+    user_id: int | None,
+    action: str,
+    target_type: str,
+    target_id: str | None = None,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+    detail: dict | None = None,
+    commit: bool = True,
+) -> models.AuditLog:
     log = models.AuditLog(user_id=user_id, action=action, target_type=target_type, target_id=target_id, ip_address=ip_address, user_agent=user_agent, detail=detail)
     db.add(log)
     if commit:
@@ -186,3 +242,32 @@ def cleanup_original_files(db: Session, *, retention_hours: int) -> int:
             path.unlink(missing_ok=True)
             deleted += 1
     return deleted
+
+
+def ensure_admin_user(
+    db: Session,
+    *,
+    username: str,
+    email: str,
+    password_hash: str,
+    full_name: str,
+    department: str | None = None,
+) -> models.User:
+    existing = db.scalar(select(models.User).where(models.User.role == models.UserRole.admin).limit(1))
+    if existing:
+        return existing
+
+    user = models.User(
+        username=username,
+        email=email,
+        password_hash=password_hash,
+        full_name=full_name,
+        role=models.UserRole.admin,
+        department=department,
+        approval_status=models.ApprovalStatus.approved,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user

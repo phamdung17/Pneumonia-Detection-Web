@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=BASE_DIR / '.env',
+        env_file=(BASE_DIR / '.env', BASE_DIR / '.env.example'),
         env_file_encoding='utf-8',
         extra='ignore',
     )
@@ -24,9 +24,9 @@ class Settings(BaseSettings):
     mysql_host: str = 'localhost'
     mysql_port: int = 3306
     mysql_db: str = 'pneumonia_db'
-    mysql_user: str = 'pneumonia_user'
-    mysql_password: str = 'your_password'
-    database_url: str | None = 'sqlite:///./backend/app.db'
+    mysql_user: str = 'root'
+    mysql_password: str = 'root'
+    database_url: str | None = None
 
     jwt_secret_key: str = 'change_me_to_a_random_32_char_secret'
     jwt_algorithm: str = 'HS256'
@@ -37,12 +37,18 @@ class Settings(BaseSettings):
     upload_dir: str = str(BASE_DIR / 'uploads')
     max_file_size_mb: int = 10
     file_retention_hours: int = 24
-    cors_origins: str = 'http://localhost:5173'
+    cors_origins: str = 'http://localhost:3000'
     task_timeout_seconds: int = 120
+
+    seed_admin_username: str = 'admin'
+    seed_admin_email: str = 'admin@pneumolens.local'
+    seed_admin_password: str = 'Admin@123'
+    seed_admin_full_name: str = 'System Administrator'
+    seed_admin_department: str = 'Administration'
 
     @field_validator('debug', 'enable_mock_predict', mode='before')
     @classmethod
-    def parse_debug(cls, value):
+    def parse_bool(cls, value):
         if isinstance(value, bool):
             return value
         if isinstance(value, str):

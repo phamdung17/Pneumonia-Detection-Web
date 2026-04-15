@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import api from "../api/axios";
 import ImageZoom from "../components/ui/ImageZoom";
 import { formatDate, getPredictionBadgeStyle, getPredictionLabel } from "../utils/formatters";
+import { useAuthStore } from "../stores/authStore";
 
 interface PredictionDetail {
   id: number;
@@ -33,6 +34,7 @@ interface PredictionDetail {
 const HistoryDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
   const [detail, setDetail] = React.useState<PredictionDetail | null>(null);
   const [note, setNote] = React.useState("");
   const [loading, setLoading] = React.useState(true);
@@ -99,6 +101,7 @@ const HistoryDetailPage: React.FC = () => {
   const performedAt = detail.performed_at || detail.created_at;
   const confidence = detail.confidence || 0;
   const typeProbs = detail.type?.probs;
+  const canReview = user?.role === "doctor";
 
   return (
     <div className="space-y-6">
@@ -143,18 +146,26 @@ const HistoryDetailPage: React.FC = () => {
 
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
             <h2 className="font-headline font-extrabold text-xl text-slate-900 mb-4">Doctor Note</h2>
-            <textarea
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="Enter clinical note..."
-              className="w-full h-32 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm text-slate-700 outline-none resize-none"
-            />
-            <div className="mt-4 flex justify-end">
-              <button onClick={handleSaveNote} disabled={isSaving} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-bold text-sm disabled:opacity-50">
-                <Save size={16} />
-                {isSaving ? "Saving..." : "Save Note"}
-              </button>
-            </div>
+            {canReview ? (
+              <>
+                <textarea
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  placeholder="Enter clinical note..."
+                  className="w-full h-32 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm text-slate-700 outline-none resize-none"
+                />
+                <div className="mt-4 flex justify-end">
+                  <button onClick={handleSaveNote} disabled={isSaving} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-bold text-sm disabled:opacity-50">
+                    <Save size={16} />
+                    {isSaving ? "Saving..." : "Save Note"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                Chi bac si moi co quyen ghi chu va xac nhan ket qua o man hinh nay.
+              </div>
+            )}
           </div>
         </div>
 
@@ -182,16 +193,18 @@ const HistoryDetailPage: React.FC = () => {
               <div className="flex justify-between"><span className="text-slate-500">Performed at</span><span className="font-bold text-slate-900">{formatDate(performedAt)}</span></div>
             </div>
 
-            <div className="mt-6 pt-6 border-t border-slate-50 flex gap-2">
-              <button onClick={() => handleConfirm(true)} className="flex-1 py-2.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
-                <Check size={14} />
-                Confirm
-              </button>
-              <button onClick={() => handleConfirm(false)} className="flex-1 py-2.5 bg-red-50 text-red-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
-                <X size={14} />
-                Reject
-              </button>
-            </div>
+            {canReview ? (
+              <div className="mt-6 pt-6 border-t border-slate-50 flex gap-2">
+                <button onClick={() => handleConfirm(true)} className="flex-1 py-2.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
+                  <Check size={14} />
+                  Confirm
+                </button>
+                <button onClick={() => handleConfirm(false)} className="flex-1 py-2.5 bg-red-50 text-red-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
+                  <X size={14} />
+                  Reject
+                </button>
+              </div>
+            ) : null}
           </div>
 
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">

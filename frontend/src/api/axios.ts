@@ -2,7 +2,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000",
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
 });
 
 api.interceptors.request.use((config) => {
@@ -16,19 +16,21 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config || {};
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem("refresh_token");
-      
+
       if (refreshToken) {
         try {
           const response = await axios.post(`${api.defaults.baseURL}/api/auth/refresh`, {
             refresh_token: refreshToken,
           });
-          const { access_token } = response.data;
+          const { access_token, refresh_token } = response.data;
           localStorage.setItem("access_token", access_token);
+          localStorage.setItem("refresh_token", refresh_token);
+          originalRequest.headers = originalRequest.headers || {};
           originalRequest.headers.Authorization = `Bearer ${access_token}`;
           return api(originalRequest);
         } catch (refreshError) {
@@ -41,10 +43,10 @@ api.interceptors.response.use(
     }
 
     if (error.response?.status === 429) {
-      const retryAfter = error.response.headers["retry-after"] || "vài";
-      toast.error(`Quá nhiều request, vui lòng chờ ${retryAfter}s`);
+      const retryAfter = error.response.headers["retry-after"] || "vai";
+      toast.error(`Qua nhieu request, vui long cho ${retryAfter}s`);
     } else if (error.response?.status === 500) {
-      toast.error("Lỗi server, vui lòng thử lại");
+      toast.error("Loi server, vui long thu lai");
     }
 
     return Promise.reject(error);

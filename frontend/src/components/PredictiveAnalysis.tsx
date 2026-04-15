@@ -16,6 +16,7 @@ import ProgressPipeline from "./predict/ProgressPipeline";
 import UploadZone from "./predict/UploadZone";
 import { useFileUpload } from "../hooks/useFileUpload";
 import { useWebSocket } from "../hooks/useWebSocket";
+import { useAuthStore } from "../stores/authStore";
 import { formatPercent, getPredictionLabel } from "../utils/formatters";
 
 interface PredictionType {
@@ -55,6 +56,7 @@ const buildSubtypeBars = (type?: PredictionType | null) => {
 };
 
 export default function PredictiveAnalysis() {
+  const user = useAuthStore((state) => state.user);
   const { handleFileSelect, isUploading, setIsUploading } = useFileUpload();
   const [taskId, setTaskId] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<PredictionData | null>(null);
@@ -184,6 +186,7 @@ export default function PredictiveAnalysis() {
   ] as const;
 
   const subtypeBars = buildSubtypeBars(result?.type);
+  const canReview = user?.role === "doctor";
   const displayedOriginalImage = result?.original_url || "";
   const displayedHeatmapImage = result?.heatmap_url || result?.original_url || "";
   const performedAt = result?.performed_at || result?.created_at || "";
@@ -382,42 +385,50 @@ export default function PredictiveAnalysis() {
                     </div>
                   </div>
 
-                  <div className="space-y-1 flex-1 flex flex-col">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ghi chu chan doan</label>
-                    <textarea
-                      value={note}
-                      onChange={(event) => setNote(event.target.value)}
-                      className="flex-1 w-full bg-sky-50/50 rounded-xl p-4 text-sm text-slate-700 border-none focus:ring-2 focus:ring-primary outline-none resize-none"
-                      placeholder="Nhap ghi chu chan doan tai day..."
-                    />
-                  </div>
+                  {canReview ? (
+                    <>
+                      <div className="space-y-1 flex-1 flex flex-col">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ghi chu chan doan</label>
+                        <textarea
+                          value={note}
+                          onChange={(event) => setNote(event.target.value)}
+                          className="flex-1 w-full bg-sky-50/50 rounded-xl p-4 text-sm text-slate-700 border-none focus:ring-2 focus:ring-primary outline-none resize-none"
+                          placeholder="Nhap ghi chu chan doan tai day..."
+                        />
+                      </div>
 
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => void handleConfirm(true)}
-                      disabled={!result}
-                      className="flex-1 bg-secondary text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-emerald-100"
-                    >
-                      <Check size={18} />
-                      Xac nhan
-                    </button>
-                    <button
-                      onClick={() => void handleConfirm(false)}
-                      disabled={!result}
-                      className="flex-1 bg-sky-100 text-primary py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                    >
-                      <X size={18} />
-                      Tu choi
-                    </button>
-                  </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => void handleConfirm(true)}
+                          disabled={!result}
+                          className="flex-1 bg-secondary text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-emerald-100"
+                        >
+                          <Check size={18} />
+                          Xac nhan
+                        </button>
+                        <button
+                          onClick={() => void handleConfirm(false)}
+                          disabled={!result}
+                          className="flex-1 bg-sky-100 text-primary py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                        >
+                          <X size={18} />
+                          Tu choi
+                        </button>
+                      </div>
 
-                  <button
-                    onClick={() => void handleSaveNote()}
-                    disabled={isSaving || !result}
-                    className="w-full bg-primary text-white py-3 rounded-xl font-bold text-sm disabled:opacity-60"
-                  >
-                    {isSaving ? "Dang luu..." : "Luu ghi chu"}
-                  </button>
+                      <button
+                        onClick={() => void handleSaveNote()}
+                        disabled={isSaving || !result}
+                        className="w-full bg-primary text-white py-3 rounded-xl font-bold text-sm disabled:opacity-60"
+                      >
+                        {isSaving ? "Dang luu..." : "Luu ghi chu"}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                      Chi bac si moi co quyen ghi chu va xac nhan ket qua chan doan.
+                    </div>
+                  )}
                 </div>
               </div>
           </>

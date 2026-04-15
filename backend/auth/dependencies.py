@@ -1,11 +1,11 @@
-﻿from fastapi import Depends, Request
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from backend.auth.jwt import decode_access_token
 from backend.database.connection import get_db
 from backend.database.crud import get_user_by_id
-from backend.database.models import User, UserRole
+from backend.database.models import ApprovalStatus, User, UserRole
 from backend.utils.errors import AuthenticationAppError, PermissionAppError
 
 
@@ -21,7 +21,11 @@ def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(
         raise AuthenticationAppError('Invalid access token') from exc
     user_id = int(payload['sub'])
     user = get_user_by_id(db, user_id)
-    if not user or not user.is_active:
+    if not user:
+        raise AuthenticationAppError('User is invalid or inactive')
+    if user.approval_status != ApprovalStatus.approved:
+        raise AuthenticationAppError('User is invalid or inactive')
+    if not user.is_active:
         raise AuthenticationAppError('User is invalid or inactive')
     return user
 

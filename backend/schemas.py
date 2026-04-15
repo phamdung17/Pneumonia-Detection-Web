@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from backend.database.models import ProcessingStatus, UserRole
+from backend.database.models import ApprovalStatus, ProcessingStatus, UserRole
 
 
 class UserRead(BaseModel):
@@ -12,14 +12,17 @@ class UserRead(BaseModel):
 
     id: int
     username: str
+    email: str
     full_name: str
     role: UserRole
     department: str | None = None
+    approval_status: ApprovalStatus
     is_active: bool
 
 
 class UserCreate(BaseModel):
     username: str
+    email: str
     password: str
     full_name: str
     role: UserRole
@@ -28,6 +31,7 @@ class UserCreate(BaseModel):
 
 class UserRegister(BaseModel):
     username: str
+    email: str
     password: str
     full_name: str
     role: UserRole
@@ -35,14 +39,16 @@ class UserRegister(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    email: str | None = None
     full_name: str | None = None
     role: UserRole | None = None
     department: str | None = None
+    approval_status: ApprovalStatus | None = None
     is_active: bool | None = None
 
 
 class LoginRequest(BaseModel):
-    username: str
+    identifier: str
     password: str
 
 
@@ -59,6 +65,11 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     user: UserRead | None = None
+
+
+class RegisterResponse(BaseModel):
+    message: str
+    user: UserRead
 
 
 class MessageResponse(BaseModel):
@@ -164,3 +175,7 @@ class PaginatedUsers(BaseModel):
 
 class StaticAssetResponse(BaseModel):
     path: str
+
+
+class ApprovalDecisionRequest(BaseModel):
+    reason: str | None = None

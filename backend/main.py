@@ -7,8 +7,10 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from backend.api import admin, auth, health, history, predict, stats
 from backend.auth.jwt import decode_access_token
+from backend.auth.password import hash_password
 from backend.config import get_settings
-from backend.database.connection import Base, engine
+from backend.database.connection import Base, SessionLocal, engine
+from backend.database.crud import ensure_admin_user
 from backend.models.loader import model_registry
 from backend.utils.errors import AppError, error_payload
 from backend.utils.file import resolve_asset_path
@@ -22,6 +24,20 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
+
+    db = SessionLocal()
+    try:
+        ensure_admin_user(
+            db,
+            username=settings.seed_admin_username,
+            email=settings.seed_admin_email,
+            password_hash=hash_password(settings.seed_admin_password),
+            full_name=settings.seed_admin_full_name,
+            department=settings.seed_admin_department,
+        )
+    finally:
+        db.close()
+
     model_registry.load()
     yield
 
@@ -32,7 +48,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origin_list, allo
 
 @app.middleware('http')
 async def request_guard(request: Request, call_next):
-    if request.url.path.startswith('/api/') and request.url.path not in {'/api/auth/login', '/api/predict/', '/api/predict/batch'}:
+    if request.url.path.startswith('/api/') and request.url.path not in {'/api/auth/login', '/api/auth/register'}:
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
             try:

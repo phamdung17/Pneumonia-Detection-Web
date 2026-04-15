@@ -1,211 +1,264 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "motion/react";
-import { 
-  User,
-  Mail, 
-  Lock, 
-  ArrowRight, 
-  ShieldCheck, 
-  UserCircle
-} from "lucide-react";
+import { User, Mail, Lock, ArrowRight, ShieldCheck, UserCircle, Building2 } from "lucide-react";
+import toast from "react-hot-toast";
+import { useAuthStore } from "../stores/authStore";
+import { validateEmail, validatePassword } from "../utils/validators";
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = params.get("next") || "/login";
+  const register = useAuthStore((state) => state.register);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
-    fullName: "",
+    full_name: "",
     username: "",
     email: "",
+    department: "",
     password: "",
-    role: "doctor"
+    confirmPassword: "",
+    role: "doctor" as "doctor" | "technician",
   });
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/predict", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+
+    if (!validateEmail(formData.email)) {
+      setError("Email khong hop le");
+      return;
+    }
+
+    if (!validatePassword(formData.password)) {
+      setError("Mat khau phai co it nhat 8 ky tu, du hoa, thuong, so va ky tu dac biet");
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Xac nhan mat khau khong khop");
+      return;
+    }
+
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const response = await register({
+        full_name: formData.full_name,
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        department: formData.department || null,
+      });
+      toast.success(response.message);
+      navigate(next, { replace: true });
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Dang ky that bai");
+    } finally {
       setIsLoading(false);
-      navigate("/login");
-    }, 1500);
+    }
   };
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-white">
-      {/* Left Side: Branding & Visuals (Same as Login for consistency) */}
-      <div className="hidden lg:flex flex-col justify-between p-12 bg-slate-900 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
-        
+    <div className="grid min-h-screen grid-cols-1 bg-white lg:grid-cols-2">
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-slate-900 p-12 lg:flex">
+        <div className="absolute right-0 top-0 h-96 w-96 translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute bottom-0 left-0 h-64 w-64 -translate-x-1/2 translate-y-1/2 rounded-full bg-sky-500/10 blur-3xl" />
+
         <div className="relative z-10">
           <Link to="/" className="flex items-center gap-2 text-white">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20">
               <ShieldCheck className="text-white" size={24} />
             </div>
-            <span className="font-headline font-extrabold text-2xl tracking-tighter">PneumoLens AI</span>
+            <span className="font-headline text-2xl font-extrabold tracking-tighter">PneumoLens AI</span>
           </Link>
         </div>
 
         <div className="relative z-10 space-y-6">
-          <motion.h2 
+          <motion.h2
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="font-headline text-5xl font-black text-white leading-tight tracking-tighter"
+            className="font-headline text-5xl font-black leading-tight tracking-tighter text-white"
           >
-            Gia nhập Đội ngũ <br />
-            <span className="text-primary">Chuyên gia Y tế Số</span>
+            Tao tai khoan
+            <br />
+            <span className="text-primary">cho doi ngu y te</span>
           </motion.h2>
-          <motion.p 
+          <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="text-slate-400 text-lg max-w-md font-medium"
+            className="max-w-md text-lg font-medium text-slate-400"
           >
-            Đăng ký tài khoản để bắt đầu sử dụng các công cụ phân tích X-quang tiên tiến nhất hiện nay.
+            Tai khoan moi co the chon vai tro doctor hoac technician va se vao hang cho admin phe duyet.
           </motion.p>
         </div>
 
-        <div className="relative z-10 flex items-center gap-8 border-t border-white/10 pt-8">
-          <div className="flex flex-col">
-            <span className="text-white font-black text-2xl tracking-tight">150+</span>
-            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Bệnh viện</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-white font-black text-2xl tracking-tight">5000+</span>
-            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Bác sĩ tin dùng</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-white font-black text-2xl tracking-tight">24/7</span>
-            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Hỗ trợ kỹ thuật</span>
-          </div>
+        <div className="relative z-10 border-t border-white/10 pt-8 text-sm text-slate-500">
+          Admin dau tien se duoc seed tu dong khi backend khoi dong neu he thong chua co tai khoan quan tri.
         </div>
       </div>
 
-      {/* Right Side: Register Form */}
-      <div className="flex items-center justify-center p-8 lg:p-24 bg-slate-50/30 overflow-y-auto">
+      <div className="flex items-center justify-center overflow-y-auto bg-slate-50/30 p-8 lg:p-24">
         <div className="w-full max-w-md space-y-8 py-12">
           <div className="space-y-2">
-            <Link to="/" className="lg:hidden flex items-center gap-2 text-slate-900 mb-8">
+            <Link to="/" className="mb-8 flex items-center gap-2 text-slate-900 lg:hidden">
               <ShieldCheck className="text-primary" size={28} />
-              <span className="font-headline font-extrabold text-xl tracking-tighter">PneumoLens AI</span>
+              <span className="font-headline text-xl font-extrabold tracking-tighter">PneumoLens AI</span>
             </Link>
-            <h1 className="font-headline text-4xl font-black text-slate-900 tracking-tight">Tạo tài khoản mới</h1>
-            <p className="text-slate-500 font-medium">Bắt đầu hành trình chẩn đoán thông minh cùng chúng tôi.</p>
+            <h1 className="font-headline text-4xl font-black tracking-tight text-slate-900">Tao tai khoan moi</h1>
+            <p className="font-medium text-slate-500">Dang ky de gui yeu cau tao tai khoan va cho admin phe duyet.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Họ và tên</label>
-                <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">
+                <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Ho va ten</label>
+                <div className="group relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-primary">
                     <UserCircle size={18} />
                   </div>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
-                    placeholder="Julian Vance"
-                    className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                    className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Tên đăng nhập</label>
-                <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">
+                <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Username</label>
+                <div className="group relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-primary">
                     <User size={18} />
                   </div>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
-                    placeholder="doctor_vance"
-                    className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all"
+                    className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
                     value={formData.username}
-                    onChange={(e) => setFormData({...formData, username: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   />
                 </div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Email công tác</label>
-              <div className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">
+              <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Email cong tac</label>
+              <div className="group relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-primary">
                   <Mail size={18} />
                 </div>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   required
-                  placeholder="vance@hospital.com"
-                  className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all"
+                  className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
                   value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Mật khẩu</label>
-              <div className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">
+              <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Khoa / phong</label>
+              <div className="group relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-primary">
+                  <Building2 size={18} />
+                </div>
+                <input
+                  type="text"
+                  className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  value={formData.department}
+                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Mat khau</label>
+              <div className="group relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-primary">
                   <Lock size={18} />
                 </div>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   required
-                  placeholder="••••••••"
-                  className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all"
+                  className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
                   value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Vai trò chuyên môn</label>
-              <select 
-                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all appearance-none"
+              <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Nhap lai mat khau</label>
+              <div className="group relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-primary">
+                  <Lock size={18} />
+                </div>
+                <input
+                  type="password"
+                  required
+                  className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Vai tro</label>
+              <select
+                className="w-full appearance-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
                 value={formData.role}
-                onChange={(e) => setFormData({...formData, role: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as "doctor" | "technician" })}
               >
-                <option value="doctor">Bác sĩ Chẩn đoán</option>
-                <option value="technician">Kỹ thuật viên X-quang</option>
-                <option value="admin">Quản trị viên Hệ thống</option>
+                <option value="doctor">Bac si chan doan</option>
+                <option value="technician">Ky thuat vien X-quang</option>
               </select>
             </div>
 
-            <div className="pt-2">
-              <button 
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-primary text-white py-4 rounded-2xl font-headline font-bold text-sm shadow-xl shadow-sky-100 flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                ) : (
-                  <>
-                    Đăng ký tài khoản
-                    <ArrowRight size={18} />
-                  </>
-                )}
-              </button>
-            </div>
+            {error ? (
+              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+                {error}
+              </div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-bold text-white shadow-xl shadow-sky-100 transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isLoading ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                <>
+                  Gui yeu cau dang ky
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
           </form>
 
           <div className="text-center">
-            <p className="text-sm text-slate-500 font-medium">
-              Đã có tài khoản?{" "}
-              <Link to="/login" className="text-primary font-bold hover:underline">Đăng nhập</Link>
+            <p className="text-sm font-medium text-slate-500">
+              Da co tai khoan?{" "}
+              <Link to="/login" className="font-bold text-primary hover:underline">
+                Dang nhap
+              </Link>
             </p>
           </div>
-
-          <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-            Bằng cách đăng ký, bạn đồng ý với <Link to="#" className="underline">Điều khoản dịch vụ</Link> và <Link to="#" className="underline">Chính sách bảo mật</Link> của PneumoLens AI.
-          </p>
         </div>
       </div>
     </div>
