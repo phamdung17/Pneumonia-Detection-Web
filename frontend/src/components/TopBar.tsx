@@ -6,9 +6,9 @@ export default function TopBar() {
       <div className="flex items-center gap-8">
         <span className="font-headline font-bold text-primary tracking-tighter text-xl">Aetheris Clinical</span>
         <nav className="hidden md:flex items-center gap-6">
-          <a className="text-slate-500 hover:text-primary font-headline text-sm tracking-tight transition-colors" href="#">Dashboard</a>
-          <a className="text-slate-500 hover:text-primary font-headline text-sm tracking-tight transition-colors" href="#">Patient Records</a>
-          <a className="text-slate-500 hover:text-primary font-headline text-sm tracking-tight transition-colors" href="#">Lab Reports</a>
+          <a className="text-slate-500 hover:text-primary font-headline text-sm tracking-tight transition-colors" href="#">Tổng quan</a>
+          <a className="text-slate-500 hover:text-primary font-headline text-sm tracking-tight transition-colors" href="#">Hồ sơ bệnh nhân</a>
+          <a className="text-slate-500 hover:text-primary font-headline text-sm tracking-tight transition-colors" href="#">Báo cáo xét nghiệm</a>
         </nav>
       </div>
 
@@ -17,7 +17,7 @@ export default function TopBar() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             className="pl-10 pr-4 py-1.5 bg-slate-100 border-none rounded-full text-sm focus:ring-2 focus:ring-primary w-64 outline-none" 
-            placeholder="Tim ma chan doan..." 
+            placeholder="Tìm mã chẩn đoán..." 
             type="text"
           />
         </div>
@@ -34,7 +34,7 @@ export default function TopBar() {
         <div className="flex items-center gap-3 pl-2 border-l border-slate-200">
           <div className="text-right hidden lg:block">
             <p className="text-xs font-bold text-slate-900">Dr. Julian Vane</p>
-            <p className="text-[10px] text-slate-500 font-medium">Clinical Lead</p>
+            <p className="text-[10px] text-slate-500 font-medium">Trưởng nhóm lâm sàng</p>
           </div>
           <img 
             alt="Dr. Julian Vane" 

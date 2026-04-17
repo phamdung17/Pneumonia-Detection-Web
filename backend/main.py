@@ -9,6 +9,7 @@ from backend.api import admin, auth, health, history, predict, stats
 from backend.auth.jwt import decode_access_token
 from backend.config import get_settings
 from backend.database.connection import Base, engine
+from backend.database.schema_sync import ensure_user_schema
 from backend.models.loader import model_registry
 from backend.utils.errors import AppError, error_payload
 from backend.utils.file import resolve_asset_path
@@ -22,6 +23,7 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
+    ensure_user_schema(engine)
     model_registry.load()
     yield
 

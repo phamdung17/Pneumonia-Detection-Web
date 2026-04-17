@@ -4,13 +4,12 @@ export const PREDICTION_COLORS = {
 };
 
 export const ROLES = {
-  admin: "Quản trị viên",
-  doctor: "Bác sĩ",
-  technician: "Kỹ thuật viên",
+  admin: "Quan tri vien",
+  client: "Nguoi dung",
 };
 
 export const PAGE_SIZE = 20;
 export const MAX_FILE_SIZE_MB = 10;
 export const WS_MAX_RETRIES = 5;
-export const POLLING_INTERVAL = 3000; // ms
+export const POLLING_INTERVAL = 3000;
 export const CLF_THRESHOLD = 0.5;

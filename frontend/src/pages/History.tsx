@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertCircle, ArrowRight, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import api from "../api/axios";
 import { formatDate, getPredictionLabel } from "../utils/formatters";
 
@@ -16,15 +16,16 @@ interface HistoryItem {
 }
 
 const getReviewStatus = (item: HistoryItem) => {
-  if (item.doctor_confirmed === true) return "CONFIRMED";
-  if (item.doctor_confirmed === false) return "REJECTED";
-  return "PENDING";
+  if (item.doctor_confirmed === true) return "ĐÃ XÁC NHẬN";
+  if (item.doctor_confirmed === false) return "TỪ CHỐI";
+  return "CHỜ ĐÁNH GIÁ";
 };
 
 const HistoryPage: React.FC = () => {
   const navigate = useNavigate();
   const [items, setItems] = React.useState<HistoryItem[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [deletingId, setDeletingId] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     const loadHistory = async () => {
@@ -39,11 +40,24 @@ const HistoryPage: React.FC = () => {
     void loadHistory();
   }, []);
 
+  const handleDelete = async (id: number) => {
+    if (deletingId) return;
+    if (!window.confirm("Bạn có chắc muốn xóa lịch sử chẩn đoán này?")) return;
+
+    setDeletingId(id);
+    try {
+      await api.delete(`/api/history/${id}`);
+      setItems((prev) => prev.filter((item) => item.id !== id));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-headline text-3xl font-extrabold text-slate-900 tracking-tight mb-2">Diagnosis History</h1>
-        <p className="text-slate-500 font-medium">Review completed studies with diagnosis, confidence, disease type, and follow-up actions.</p>
+        <h1 className="font-headline text-3xl font-extrabold text-slate-900 tracking-tight mb-2">Lịch sử chẩn đoán</h1>
+        <p className="text-slate-500 font-medium">Theo dõi các ca đã hoàn thành với kết quả chẩn đoán, độ tin cậy và đánh giá.</p>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -52,22 +66,22 @@ const HistoryPage: React.FC = () => {
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">ID</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Created</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Diagnosis</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Type</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Confidence</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Review</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Action</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Thời gian</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Chẩn đoán</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Loại</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Độ tin cậy</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Đánh giá</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td className="px-6 py-8 text-slate-400" colSpan={7}>Loading history...</td>
+                  <td className="px-6 py-8 text-slate-400" colSpan={7}>Đang tải lịch sử...</td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td className="px-6 py-8 text-slate-400" colSpan={7}>No predictions yet.</td>
+                  <td className="px-6 py-8 text-slate-400" colSpan={7}>Chưa có ca chẩn đoán nào.</td>
                 </tr>
               ) : (
                 items.map((item) => (
@@ -80,7 +94,7 @@ const HistoryPage: React.FC = () => {
                         {getPredictionLabel((item.prediction || "NORMAL") as "NORMAL" | "PNEUMONIA")}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.type?.label || "NONE"}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.type?.label || "KHÔNG"}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-3">
                         <div className="w-20 bg-slate-100 rounded-full h-1.5 overflow-hidden">
@@ -94,13 +108,21 @@ const HistoryPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-600">{getReviewStatus(item)}</td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => navigate(`/history/${item.id}`)}
-                        className="text-primary font-bold text-sm hover:underline inline-flex items-center gap-1"
-                      >
-                        View detail
-                        <ArrowRight size={14} />
-                      </button>
+                      <div className="inline-flex items-center gap-2">
+                        <button
+                          onClick={() => navigate(`/history/${item.id}`)}
+                          className="text-primary font-bold text-sm hover:underline"
+                        >
+                          Sửa
+                        </button>
+                        <button
+                          onClick={() => void handleDelete(item.id)}
+                          disabled={deletingId === item.id}
+                          className="text-red-500 font-bold text-sm hover:underline disabled:opacity-60"
+                        >
+                          {deletingId === item.id ? "Đang xóa..." : "Xóa"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

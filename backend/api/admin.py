@@ -8,7 +8,7 @@ from backend.api.predict import serialize_prediction
 from backend.auth.dependencies import require_roles
 from backend.auth.password import hash_password
 from backend.database.connection import get_db
-from backend.database.crud import create_user, list_audit_logs, list_predictions_admin, list_users
+from backend.database.crud import create_user, get_user_by_email, list_audit_logs, list_predictions_admin, list_users
 from backend.database.models import User, UserRole
 from backend.schemas import MessageResponse, PaginatedAuditLogs, PaginatedPredictions, PaginatedUsers, UserCreate, UserRead, UserUpdate
 from backend.utils.errors import NotFoundAppError, ValidationAppError
@@ -27,7 +27,9 @@ def get_users(page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100), 
 def add_user(payload: UserCreate, _: User = Depends(require_roles(UserRole.admin)), db: Session = Depends(get_db)) -> UserRead:
     if db.scalar(select(User).where(User.username == payload.username)):
         raise ValidationAppError('Username already exists')
-    user = create_user(db, username=payload.username, password_hash=hash_password(payload.password), full_name=payload.full_name, role=payload.role, department=payload.department)
+    if get_user_by_email(db, payload.email):
+        raise ValidationAppError('Email already exists')
+    user = create_user(db, username=payload.username, email=payload.email, password_hash=hash_password(payload.password), full_name=payload.full_name, role=payload.role)
     return UserRead.model_validate(user)
 
 
@@ -36,6 +38,10 @@ def update_user(user_id: int, payload: UserUpdate, _: User = Depends(require_rol
     user = db.get(User, user_id)
     if not user:
         raise NotFoundAppError('User not found')
+    if payload.email:
+        existing = get_user_by_email(db, payload.email)
+        if existing and existing.id != user_id:
+            raise ValidationAppError('Email already exists')
     for field, value in payload.model_dump(exclude_none=True).items():
         setattr(user, field, value)
     db.add(user)

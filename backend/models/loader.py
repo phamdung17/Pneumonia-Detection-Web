@@ -6,6 +6,7 @@ from time import perf_counter
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torchvision import models
 
 from backend.config import BASE_DIR
@@ -27,26 +28,26 @@ def _disable_inplace_relu(module: nn.Module) -> None:
             child.inplace = False
 
 
-class DenseNetClassifier(nn.Module):
+class DenseNetMultiHead(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.model = models.densenet121(weights=None)
-        self.model.classifier = nn.Sequential(
-            nn.Identity(),
-            nn.Dropout(p=0.25),
-            nn.Identity(),
-            nn.Linear(1024, 256),
-            nn.ReLU(inplace=True),
-            nn.Dropout(p=0.25),
-            nn.Linear(256, 1),
-        )
+        base = models.densenet121(weights=None)
+        self.backbone = base.features
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.drop = nn.Dropout(p=0.3)
+        self.head_binary = nn.Linear(1024, 1)
+        self.head_type = nn.Linear(1024, 3)
 
     @property
     def features(self) -> nn.Module:
-        return self.model.features
+        return self.backbone
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.model(x)
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        feat = self.backbone(x)
+        feat = F.relu(feat, inplace=False)
+        feat = self.pool(feat).flatten(1)
+        feat = self.drop(feat)
+        return self.head_binary(feat), self.head_type(feat)
 
 
 class ModelRegistry:
@@ -54,7 +55,7 @@ class ModelRegistry:
         self.loaded = False
         self.device = DEVICE
         self.onnx_session: ort.InferenceSession | None = None
-        self.torch_model: DenseNetClassifier | None = None
+        self.torch_model: DenseNetMultiHead | None = None
         self.model_status = {
             'onnx': False,
             'torch_gradcam': False,
@@ -101,19 +102,23 @@ class ModelRegistry:
         if self.torch_model is not None:
             self.model_status['torch_gradcam'] = True
             return
-        weights_path = WEIGHTS_DIR / 'densenet_t1_best.pth'
+        weights_path = WEIGHTS_DIR / 'densenet_multihead_best.pth'
         if not weights_path.exists():
             error_logger.error('torch_gradcam_weights_missing path=%s', weights_path)
             self.model_status['torch_gradcam'] = False
             return
-        model = DenseNetClassifier()
-        state_dict = torch.load(weights_path, map_location='cpu')
-        model.load_state_dict(state_dict, strict=True)
-        _disable_inplace_relu(model)
-        model.to(self.device)
-        model.eval()
-        self.torch_model = model
-        self.model_status['torch_gradcam'] = True
+        try:
+            model = DenseNetMultiHead()
+            state_dict = torch.load(weights_path, map_location='cpu')
+            model.load_state_dict(state_dict, strict=True)
+            _disable_inplace_relu(model)
+            model.to(self.device)
+            model.eval()
+            self.torch_model = model
+            self.model_status['torch_gradcam'] = True
+        except Exception as exc:
+            error_logger.exception('torch_gradcam_load_failed path=%s error=%s', weights_path, exc)
+            self.model_status['torch_gradcam'] = False
 
     def health(self) -> dict[str, bool]:
         return {

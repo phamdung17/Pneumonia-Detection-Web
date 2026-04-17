@@ -9,6 +9,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BASE_DIR = Path(__file__).resolve().parent
 
 
+def _to_sqlite_absolute_url(raw_url: str) -> str:
+    prefix = 'sqlite:///'
+    if not raw_url.startswith(prefix):
+        return raw_url
+    raw_path = raw_url[len(prefix):]
+    if raw_path in {':memory:', ''}:
+        return raw_url
+    path_obj = Path(raw_path)
+    if not path_obj.is_absolute():
+        path_obj = (BASE_DIR.parent / path_obj).resolve()
+    return f"sqlite:///{path_obj.as_posix()}"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / '.env',
@@ -57,7 +70,7 @@ class Settings(BaseSettings):
     @property
     def sqlalchemy_database_uri(self) -> str:
         if self.database_url:
-            return self.database_url
+            return _to_sqlite_absolute_url(self.database_url)
         return (
             f'mysql+pymysql://{self.mysql_user}:{self.mysql_password}'
             f'@{self.mysql_host}:{self.mysql_port}/{self.mysql_db}'

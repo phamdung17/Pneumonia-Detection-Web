@@ -12,32 +12,32 @@ class UserRead(BaseModel):
 
     id: int
     username: str
+    email: str | None = None
     full_name: str
     role: UserRole
-    department: str | None = None
     is_active: bool
+    created_at: datetime
 
 
 class UserCreate(BaseModel):
     username: str
+    email: str
     password: str
     full_name: str
     role: UserRole
-    department: str | None = None
 
 
 class UserRegister(BaseModel):
     username: str
+    email: str
     password: str
     full_name: str
-    role: UserRole = UserRole.client
-    department: str | None = None
 
 
 class UserUpdate(BaseModel):
+    email: str | None = None
     full_name: str | None = None
     role: UserRole | None = None
-    department: str | None = None
     is_active: bool | None = None
 
 

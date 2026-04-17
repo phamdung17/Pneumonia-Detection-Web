@@ -19,6 +19,10 @@ def get_user_by_username(db: Session, username: str) -> models.User | None:
     return db.scalar(select(models.User).where(models.User.username == username))
 
 
+def get_user_by_email(db: Session, email: str) -> models.User | None:
+    return db.scalar(select(models.User).where(models.User.email == email))
+
+
 def get_user_by_id(db: Session, user_id: int) -> models.User | None:
     return db.get(models.User, user_id)
 
@@ -28,8 +32,16 @@ def list_users(db: Session, page: int = 1, limit: int = 20, search: str | None =
     count_stmt = select(func.count()).select_from(models.User)
     if search:
         like = f'%{search}%'
-        stmt = stmt.where(models.User.username.like(like) | models.User.full_name.like(like))
-        count_stmt = count_stmt.where(models.User.username.like(like) | models.User.full_name.like(like))
+        stmt = stmt.where(
+            models.User.username.like(like)
+            | models.User.full_name.like(like)
+            | models.User.email.like(like)
+        )
+        count_stmt = count_stmt.where(
+            models.User.username.like(like)
+            | models.User.full_name.like(like)
+            | models.User.email.like(like)
+        )
     if role:
         stmt = stmt.where(models.User.role == role)
         count_stmt = count_stmt.where(models.User.role == role)
@@ -41,8 +53,8 @@ def list_users(db: Session, page: int = 1, limit: int = 20, search: str | None =
     return items, total
 
 
-def create_user(db: Session, *, username: str, password_hash: str, full_name: str, role: models.UserRole, department: str | None) -> models.User:
-    user = models.User(username=username, password_hash=password_hash, full_name=full_name, role=role, department=department)
+def create_user(db: Session, *, username: str, email: str | None, password_hash: str, full_name: str, role: models.UserRole) -> models.User:
+    user = models.User(username=username, email=email, password_hash=password_hash, full_name=full_name, role=role)
     db.add(user)
     db.commit()
     db.refresh(user)

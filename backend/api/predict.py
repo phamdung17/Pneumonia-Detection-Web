@@ -129,7 +129,7 @@ def build_prediction_envelope(prediction) -> dict[str, Any]:
 @router.post('/', response_model=dict)
 async def submit_prediction(file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     check_rate_limit(f'ratelimit:predict:{current_user.id}', 20, 60)
-    ensure_models_ready()
+    ensure_models_ready(require_gradcam=False)
     task_id = str(uuid4())
     filename, file_path = await save_upload_file(file, task_id)
     prediction = create_prediction(db, user_id=current_user.id, task_id=task_id, filename=filename, file_path=file_path)

@@ -17,6 +17,30 @@ import UploadZone from "./predict/UploadZone";
 import { useFileUpload } from "../hooks/useFileUpload";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { formatPercent, getPredictionLabel } from "../utils/formatters";
+import { toApiAssetUrl } from "../utils/url";
+
+interface PatientDraft {
+  patient_name: string;
+  patient_age: string;
+  patient_gender: string;
+  technician_name: string;
+  performed_at: string;
+}
+
+const toDateTimeLocal = (iso?: string | null): string => {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const toIsoStringOrNull = (value: string): string | null => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+};
 
 interface PredictionType {
   label: string | null;
@@ -48,7 +72,7 @@ interface PredictionData {
 const buildSubtypeBars = (type?: PredictionType | null) => {
   if (!type?.probs) return [];
   return [
-    { label: "Vi khuan", value: type.probs.BACTERIAL ?? 0, color: "bg-red-500" },
+    { label: "Vi khuẩn", value: type.probs.BACTERIAL ?? 0, color: "bg-red-500" },
     { label: "Virus", value: type.probs.VIRAL ?? 0, color: "bg-sky-500" },
     { label: "COVID-19", value: type.probs.COVID ?? 0, color: "bg-slate-400" },
   ];
@@ -60,10 +84,18 @@ export default function PredictiveAnalysis() {
   const [result, setResult] = React.useState<PredictionData | null>(null);
   const [currentStage, setCurrentStage] = React.useState<string>("queued");
   const [stageProgress, setStageProgress] = React.useState<Record<string, number>>({});
-  const [statusMessage, setStatusMessage] = React.useState<string>("Upload an image to start diagnosis");
+  const [statusMessage, setStatusMessage] = React.useState<string>("Tải ảnh để bắt đầu chẩn đoán");
   const [note, setNote] = React.useState("");
+  const [patientDraft, setPatientDraft] = React.useState<PatientDraft>({
+    patient_name: "",
+    patient_age: "",
+    patient_gender: "",
+    technician_name: "",
+    performed_at: "",
+  });
   const [zoomImage, setZoomImage] = React.useState<{ src: string; alt: string } | null>(null);
-  const [isSaving, setIsSaving] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState<boolean>(false);
+  const [isSavingPatient, setIsSavingPatient] = React.useState<boolean>(false);
 
   const fetchPredictionById = React.useCallback(async (predictionId: string) => {
     const response = await api.get(`/api/history/${predictionId}`);
@@ -79,6 +111,17 @@ export default function PredictiveAnalysis() {
     }
   }, []);
 
+  React.useEffect(() => {
+    if (!result) return;
+    setPatientDraft({
+      patient_name: result.patient_name || "",
+      patient_age: result.patient_age != null ? String(result.patient_age) : "",
+      patient_gender: result.patient_gender || "",
+      technician_name: result.technician_name || "",
+      performed_at: toDateTimeLocal(result.performed_at || result.created_at || null),
+    });
+  }, [result]);
+
   useWebSocket(taskId, {
     onProgress: (stage, status, data) => {
       setCurrentStage(stage || "queued");
@@ -88,15 +131,15 @@ export default function PredictiveAnalysis() {
       if (data?.message) {
         setStatusMessage(data.message);
       } else if (stage === "final" && status === "done") {
-        setStatusMessage("Diagnosis completed");
+        setStatusMessage("Chẩn đoán hoàn tất");
       }
       if (stage === "final" && status === "done" && data?.id) {
         setResult(data);
         setNote(data.doctor_note || "");
       }
-      if (stage === "error" || status === "failed") {
+      if (stage === "error" || status === "failed") { 
         setIsUploading(false);
-        toast.error(data?.message || "Prediction failed");
+        toast.error(data?.message || "Chẩn đoán thất bại");
       }
     },
     onComplete: async (predictionId) => {
@@ -108,7 +151,7 @@ export default function PredictiveAnalysis() {
           await fetchPredictionByTask(taskId);
         }
       }
-      toast.success("Diagnosis completed");
+      toast.success("Chẩn đoán hoàn tất");
     },
     onError: (message) => {
       setStatusMessage(message);
@@ -127,16 +170,18 @@ export default function PredictiveAnalysis() {
     setNote("");
     setCurrentStage("queued");
     setStageProgress({ queued: 0 });
-    setStatusMessage("Uploading image...");
+    setStatusMessage("Đang tải ảnh...");
 
     try {
       const response = await api.post("/api/predict/", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setTaskId(response.data.task_id);
-    } catch {
+    } catch (error: any) {
       setIsUploading(false);
-      toast.error("Upload failed");
+      const message = error?.response?.data?.message || "Tải ảnh thất bại";
+      setStatusMessage(message);
+      toast.error(message);
     }
   };
 
@@ -146,9 +191,42 @@ export default function PredictiveAnalysis() {
     try {
       await api.put(`/api/predict/${result.id}/note`, { note });
       setResult((prev) => (prev ? { ...prev, doctor_note: note } : prev));
-      toast.success("Note saved");
+      toast.success("Đã lưu ghi chú");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSavePatientInfo = async () => {
+    if (!result) return;
+    setIsSavingPatient(true);
+    try {
+      const ageText = patientDraft.patient_age.trim();
+      const parsedAge = ageText ? Number(ageText) : null;
+      const payload = {
+        patient_name: patientDraft.patient_name.trim() || null,
+        patient_age: Number.isFinite(parsedAge) ? parsedAge : null,
+        patient_gender: patientDraft.patient_gender.trim() || null,
+        technician_name: patientDraft.technician_name.trim() || null,
+        performed_at: toIsoStringOrNull(patientDraft.performed_at),
+      };
+
+      await api.put(`/api/predict/${result.id}/patient`, payload);
+      setResult((prev) => (
+        prev
+          ? {
+              ...prev,
+              patient_name: payload.patient_name,
+              patient_age: payload.patient_age,
+              patient_gender: payload.patient_gender,
+              technician_name: payload.technician_name,
+              performed_at: payload.performed_at,
+            }
+          : prev
+      ));
+      toast.success("Đã lưu thông tin lâm sàng");
+    } finally {
+      setIsSavingPatient(false);
     }
   };
 
@@ -156,12 +234,12 @@ export default function PredictiveAnalysis() {
     if (!result) return;
     await api.put(`/api/predict/${result.id}/confirm`, { confirmed });
     setResult((prev) => (prev ? { ...prev, doctor_confirmed: confirmed } : prev));
-    toast.success(confirmed ? "Prediction confirmed" : "Prediction rejected");
+    toast.success(confirmed ? "Đã xác nhận kết quả" : "Đã từ chối kết quả");
   };
 
   const handleExportPDF = async () => {
     if (!result) {
-      toast.error("Chua co ket qua de xuat PDF");
+      toast.error("Chưa có kết quả để xuất PDF");
       return;
     }
 
@@ -174,53 +252,54 @@ export default function PredictiveAnalysis() {
       anchor.click();
       URL.revokeObjectURL(blobUrl);
     } catch {
-      toast.error("Khong the xuat PDF luc nay");
+      toast.error("Không thể xuất PDF lúc này");
     }
   };
+
+  const subtypeBars = buildSubtypeBars(result?.type);
+  const displayedOriginalImage = toApiAssetUrl(result?.original_url);
+  const displayedHeatmapImage = toApiAssetUrl(result?.heatmap_url);
+  const hasResult = Boolean(result);
+  const hasHeatmap = Boolean(displayedHeatmapImage);
+  const hasSubtype = subtypeBars.length > 0;
 
   const steps = [
     {
       id: "T1",
-      label: "AI diagnosis",
+      label: "Chẩn đoán AI",
       icon: Layers,
-      status: currentStage === "T1" ? "processing" : stageProgress.T1 ? "done" : "pending",
-      progress: stageProgress.T1 ?? 0,
+      status: hasResult ? "done" : currentStage === "T1" ? "processing" : stageProgress.T1 ? "done" : "pending",
+      progress: hasResult ? 100 : stageProgress.T1 ?? 0,
     },
     {
       id: "gradcam",
-      label: "Heatmap generation",
+      label: "Tạo heatmap",
       icon: BarChart3,
-      status: currentStage === "gradcam" ? "processing" : stageProgress.gradcam ? "done" : "pending",
-      progress: stageProgress.gradcam ?? 0,
+      status: hasHeatmap ? "done" : hasResult ? "pending" : currentStage === "gradcam" ? "processing" : stageProgress.gradcam ? "done" : "pending",
+      progress: hasHeatmap ? 100 : stageProgress.gradcam ?? 0,
     },
     {
       id: "final",
-      label: "Result ready",
+      label: "Sẵn sàng kết quả",
       icon: BarChart3,
       status: result ? "done" : currentStage === "final" ? "processing" : "pending",
       progress: result ? 100 : stageProgress.final ?? 0,
     },
   ] as const;
-
-  const subtypeBars = buildSubtypeBars(result?.type);
-  const displayedOriginalImage = result?.original_url || "";
-  const displayedHeatmapImage = result?.heatmap_url || result?.original_url || "";
-  const performedAt = result?.performed_at || result?.created_at || "";
-  const hasResult = Boolean(result);
-  const confidenceText = hasResult ? formatPercent(result.confidence) : "--";
-  const predictionLabel = hasResult ? getPredictionLabel(result.prediction) : "Cho ket qua chan doan";
+  const confidenceText = result ? formatPercent(result.confidence) : "--";
+  const predictionLabel = result ? getPredictionLabel(result.prediction) : "Chờ kết quả chẩn đoán";
   const predictionHint = hasResult
     ? result?.prediction === "PNEUMONIA"
-      ? "Can xem xet ngay lap tuc"
-      : "Khong phat hien bat thuong"
-    : "Du lieu se hien thi sau khi phan tich";
+      ? "Cần xem xét ngay lập tức"
+      : "Không phát hiện bất thường"
+    : "Dữ liệu sẽ hiển thị sau khi phân tích";
 
   return (
     <div className="space-y-8">
       <section>
-        <h1 className="font-headline font-extrabold text-3xl text-on-surface tracking-tight">Phan tich du doan</h1>
+        <h1 className="font-headline font-extrabold text-3xl text-on-surface tracking-tight">Phân tích dự đoán</h1>
         <p className="text-on-surface-variant mt-1 max-w-2xl">
-          Tai len anh X-quang nguc de nhan ket qua chan doan, ty le tin cay, phan nhom benh va hinh anh heatmap.
+          Tải lên ảnh X-quang ngực để nhận kết quả chẩn đoán, tỷ lệ tin cậy, phân nhóm bệnh và hình ảnh heatmap.
         </p>
       </section>
 
@@ -229,11 +308,11 @@ export default function PredictiveAnalysis() {
           <UploadZone onFileSelect={handleSelectAndUpload} isUploading={isUploading} />
           <ProgressPipeline steps={steps as any} />
           <div className="bg-white rounded-2xl border border-slate-100 p-5 text-sm text-slate-600 shadow-sm">
-            <div className="font-bold text-slate-900 mb-2">Pipeline status</div>
+            <div className="font-bold text-slate-900 mb-2">Trạng thái pipeline</div>
             <div>{statusMessage}</div>
             {result?.type?.label && (
               <div className="mt-3 text-xs uppercase tracking-widest text-slate-500">
-                Type label: <span className="font-bold text-slate-900">{result.type.label}</span>
+                Nhãn loại: <span className="font-bold text-slate-900">{result.type.label}</span>
               </div>
             )}
           </div>
@@ -243,7 +322,7 @@ export default function PredictiveAnalysis() {
           <>
               <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-50 flex items-center justify-between gap-6">
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Do tin cay chan doan</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Độ tin cậy chẩn đoán</p>
                   <div className="flex items-baseline gap-2">
                     <span className="font-headline font-extrabold text-6xl text-on-surface tracking-tighter">
                       {confidenceText}
@@ -273,10 +352,10 @@ export default function PredictiveAnalysis() {
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-headline font-bold text-on-surface">Ban do nhiet dinh vi</h4>
+                  <h4 className="font-headline font-bold text-on-surface">Bản đồ nhiệt định vị</h4>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => displayedOriginalImage && setZoomImage({ src: displayedOriginalImage, alt: "Anh goc" })}
+                      onClick={() => displayedOriginalImage && setZoomImage({ src: displayedOriginalImage, alt: "Ảnh gốc" })}
                       className="p-2 bg-sky-50 text-primary rounded-lg hover:bg-sky-100 transition-colors"
                     >
                       <Search size={18} />
@@ -293,23 +372,23 @@ export default function PredictiveAnalysis() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="relative group rounded-2xl overflow-hidden border border-slate-100 aspect-square bg-slate-900 shadow-sm">
                     {displayedOriginalImage ? (
-                      <img src={displayedOriginalImage} alt="Anh goc" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                      <img src={displayedOriginalImage} alt="Ảnh gốc" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm bg-slate-100">
-                        Anh goc se hien thi tai day
+                        Ảnh gốc sẽ hiển thị tại đây
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                       <button
                         disabled={!displayedOriginalImage}
-                        onClick={() => setZoomImage({ src: displayedOriginalImage, alt: "Anh X-quang goc" })}
+                        onClick={() => setZoomImage({ src: displayedOriginalImage, alt: "Ảnh X-quang gốc" })}
                         className="p-3 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all disabled:opacity-40"
                       >
                         <ZoomIn size={24} />
                       </button>
                     </div>
                     <div className="absolute bottom-4 left-4 bg-black/40 backdrop-blur-md px-3 py-1 rounded text-[10px] font-bold text-white uppercase tracking-widest">
-                      Anh goc
+                      Ảnh gốc
                     </div>
                   </div>
 
@@ -317,14 +396,14 @@ export default function PredictiveAnalysis() {
                     {displayedHeatmapImage ? (
                       <img src={displayedHeatmapImage} alt="Grad-CAM" className="w-full h-full object-cover opacity-85 transition-transform duration-500 group-hover:scale-105" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm bg-slate-100">
-                        Heatmap se hien thi tai day
+                      <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm bg-slate-100 px-6 text-center">
+                        Grad-CAM chưa khả dụng (thiếu model heatmap `densenet_t1_best.pth`)
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                       <button
                         disabled={!displayedHeatmapImage}
-                        onClick={() => setZoomImage({ src: displayedHeatmapImage, alt: "Ban do nhiet Grad-CAM" })}
+                        onClick={() => setZoomImage({ src: displayedHeatmapImage, alt: "Bản đồ nhiệt Grad-CAM" })}
                         className="p-3 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all disabled:opacity-40"
                       >
                         <ZoomIn size={24} />
@@ -339,13 +418,10 @@ export default function PredictiveAnalysis() {
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <div className="bg-sky-50/30 p-8 rounded-2xl border border-sky-100 space-y-8">
-                  <h4 className="font-headline font-bold text-xs uppercase tracking-widest text-slate-500">Phan nhom viem phoi</h4>
-                  <div className="space-y-6">
-                    {(subtypeBars.length ? subtypeBars : [
-                      { label: "Vi khuan", value: 0, color: "bg-red-500" },
-                      { label: "Virus", value: 0, color: "bg-sky-500" },
-                      { label: "COVID-19", value: 0, color: "bg-slate-400" },
-                    ]).map((type) => (
+                  <h4 className="font-headline font-bold text-xs uppercase tracking-widest text-slate-500">Phân nhóm viêm phổi</h4>
+                  {hasSubtype ? (
+                    <div className="space-y-6">
+                      {subtypeBars.map((type) => (
                       <div key={type.label} className="space-y-2">
                         <div className="flex justify-between text-xs font-bold">
                           <span className="text-slate-700">{type.label}</span>
@@ -355,59 +431,85 @@ export default function PredictiveAnalysis() {
                           <div className={`${type.color} h-full rounded-full`} style={{ width: `${type.value * 100}%` }} />
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl bg-white/80 border border-sky-100 p-4 text-sm text-slate-600">
+                      {hasResult && result?.prediction === "PNEUMONIA"
+                        ? "Chưa có mô hình phân nhóm viêm phổi (Vi khuẩn/Virus/COVID)."
+                        : "Phân nhóm chỉ áp dụng khi kết quả là viêm phổi."}
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-white p-8 rounded-2xl border border-slate-50 space-y-6 flex flex-col shadow-sm">
-                  <h4 className="font-headline font-bold text-xs uppercase tracking-widest text-slate-500">Quan sat lam sang</h4>
+                  <h4 className="font-headline font-bold text-xs uppercase tracking-widest text-slate-500">Quan sát lâm sàng</h4>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Benh nhan</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bệnh nhân</label>
                       <input
                         type="text"
-                        value={result?.patient_name || ""}
-                        readOnly
-                        className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none"
+                        value={patientDraft.patient_name}
+                        onChange={(event) => setPatientDraft((prev) => ({ ...prev, patient_name: event.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tuoi / Gioi tinh</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tuổi / Giới tính</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          value={patientDraft.patient_age}
+                          onChange={(event) => setPatientDraft((prev) => ({ ...prev, patient_age: event.target.value }))}
+                          placeholder="Tuổi"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <input
+                          type="text"
+                          value={patientDraft.patient_gender}
+                          onChange={(event) => setPatientDraft((prev) => ({ ...prev, patient_gender: event.target.value }))}
+                          placeholder="Giới tính"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Thời gian thực hiện</label>
                       <input
-                        type="text"
-                        value={`${result?.patient_age ?? "-"} / ${result?.patient_gender || "-"}`}
-                        readOnly
-                        className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none"
+                        type="datetime-local"
+                        value={patientDraft.performed_at}
+                        onChange={(event) => setPatientDraft((prev) => ({ ...prev, performed_at: event.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Thoi gian thuc hien</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Kỹ thuật viên</label>
                       <input
                         type="text"
-                        value={performedAt || ""}
-                        readOnly
-                        className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ky thuat vien</label>
-                      <input
-                        type="text"
-                        value={result?.technician_name || ""}
-                        readOnly
-                        className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none"
+                        value={patientDraft.technician_name}
+                        onChange={(event) => setPatientDraft((prev) => ({ ...prev, technician_name: event.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary"
                       />
                     </div>
                   </div>
 
+                  <button
+                    onClick={() => void handleSavePatientInfo()}
+                    disabled={isSavingPatient || !result}
+                    className="w-full bg-slate-700 text-white py-3 rounded-xl font-bold text-sm disabled:opacity-60"
+                  >
+                    {isSavingPatient ? "Đang lưu thông tin..." : "Lưu thông tin lâm sàng"}
+                  </button>
+
                   <div className="space-y-1 flex-1 flex flex-col">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ghi chu chan doan</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ghi chú chẩn đoán</label>
                     <textarea
                       value={note}
                       onChange={(event) => setNote(event.target.value)}
                       className="flex-1 w-full bg-sky-50/50 rounded-xl p-4 text-sm text-slate-700 border-none focus:ring-2 focus:ring-primary outline-none resize-none"
-                      placeholder="Nhap ghi chu chan doan tai day..."
+                      placeholder="Nhập ghi chú chẩn đoán tại đây..."
                     />
                   </div>
 
@@ -418,7 +520,7 @@ export default function PredictiveAnalysis() {
                       className="flex-1 bg-secondary text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-emerald-100"
                     >
                       <Check size={18} />
-                      Xac nhan
+                      Xác nhận
                     </button>
                     <button
                       onClick={() => void handleConfirm(false)}
@@ -426,7 +528,7 @@ export default function PredictiveAnalysis() {
                       className="flex-1 bg-sky-100 text-primary py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
                     >
                       <X size={18} />
-                      Tu choi
+                      Từ chối
                     </button>
                   </div>
 
@@ -435,7 +537,7 @@ export default function PredictiveAnalysis() {
                     disabled={isSaving || !result}
                     className="w-full bg-primary text-white py-3 rounded-xl font-bold text-sm disabled:opacity-60"
                   >
-                    {isSaving ? "Dang luu..." : "Luu ghi chu"}
+                    {isSaving ? "Đang lưu..." : "Lưu ghi chú"}
                   </button>
                 </div>
               </div>

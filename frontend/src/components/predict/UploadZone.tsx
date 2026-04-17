@@ -56,6 +56,9 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onFileSelect, isUploading }) =>
       <p className="text-on-surface-variant text-sm mt-1 text-center px-8">
         Kéo thả hoặc click để chọn tệp (JPEG, PNG)
       </p>
+      <p className="text-amber-600 text-xs mt-2 text-center px-8 font-medium">
+        Lưu ý: Hệ thống chỉ chấp nhận ảnh X-quang ngực. Ảnh không phù hợp có thể bị từ chối.
+      </p>
       
       {!isUploading && (
         <button className="mt-8 px-8 py-2.5 bg-sky-100 hover:bg-sky-200 text-primary font-bold rounded-xl transition-colors text-sm">

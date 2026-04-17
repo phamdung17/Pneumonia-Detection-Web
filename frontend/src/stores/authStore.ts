@@ -2,17 +2,24 @@ import { create } from "zustand";
 import api from "../api/axios";
 
 interface User {
-  id: string;
+  id: number;
   username: string;
+  email: string | null;
   full_name: string;
-  role: "admin" | "client" | "doctor" | "technician";
-  department: string;
+  role: "admin" | "client";
+  is_active: boolean;
+  created_at: string;
+}
+
+interface LoginCredentials {
+  username: string;
+  password: string;
 }
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
-  login: (credentials: any) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<User>;
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
 }
@@ -26,10 +33,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.setItem("access_token", access_token);
     localStorage.setItem("refresh_token", refresh_token);
     set({ user, isAuthenticated: true });
+    return user;
   },
   logout: async () => {
+    const refreshToken = localStorage.getItem("refresh_token");
     try {
-      await api.post("/api/auth/logout");
+      if (refreshToken) {
+        await api.post("/api/auth/logout", { refresh_token: refreshToken });
+      }
     } finally {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
@@ -42,7 +53,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const response = await api.get("/api/auth/me");
       set({ user: response.data, isAuthenticated: true });
-    } catch (error) {
+    } catch {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
       set({ user: null, isAuthenticated: false });

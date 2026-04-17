@@ -17,8 +17,6 @@ class TimestampMixin:
 class UserRole(str, enum.Enum):
     admin = "admin"
     client = "client"
-    doctor = "doctor"
-    technician = "technician"
 
 
 class PredictionLabel(str, enum.Enum):
@@ -50,10 +48,10 @@ class User(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     username: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    email: Mapped[str | None] = mapped_column(String(255), index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.client, nullable=False)
-    department: Mapped[str | None] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     failed_login_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime)

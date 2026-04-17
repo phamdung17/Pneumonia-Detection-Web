@@ -8,14 +8,67 @@ interface WebSocketOptions {
   onError?: (message: string) => void;
 }
 
+type PollEnvelope = {
+  stage: string;
+  status: string;
+  data: any;
+  predictionId: string | null;
+};
+
 const getWebSocketBaseUrl = () => {
   const configured = import.meta.env.VITE_WS_URL;
   if (configured) return configured;
 
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
   if (apiUrl.startsWith("https://")) return apiUrl.replace("https://", "wss://");
   if (apiUrl.startsWith("http://")) return apiUrl.replace("http://", "ws://");
   return apiUrl;
+};
+
+const normalizePollingResult = (result: any): PollEnvelope => {
+  if (result && typeof result.stage === "string" && typeof result.status === "string") {
+    return {
+      stage: result.stage,
+      status: result.status,
+      data: result.data,
+      predictionId: result.predictionId || result.prediction_id || null,
+    };
+  }
+
+  const rawStatus = String(result?.status || "").toLowerCase();
+  if (rawStatus === "done") {
+    return {
+      stage: "final",
+      status: "done",
+      data: result,
+      predictionId: result?.id != null ? String(result.id) : null,
+    };
+  }
+
+  if (rawStatus === "failed") {
+    return {
+      stage: "error",
+      status: "failed",
+      data: { message: result?.error_message || "Prediction failed" },
+      predictionId: null,
+    };
+  }
+
+  if (rawStatus === "processing") {
+    return {
+      stage: "T1",
+      status: "running",
+      data: { message: "DenseNet-121 analyzing image...", progress: 45 },
+      predictionId: null,
+    };
+  }
+
+  return {
+    stage: "queued",
+    status: "queued",
+    data: { message: "Task queued", progress: 0 },
+    predictionId: null,
+  };
 };
 
 export const useWebSocket = (taskId: string | null, options: WebSocketOptions = {}) => {
@@ -40,7 +93,7 @@ export const useWebSocket = (taskId: string | null, options: WebSocketOptions = 
     pollingIntervalRef.current = setInterval(async () => {
       try {
         const response = await api.get(`/api/predict/${taskId}`);
-        const result = response.data;
+        const result = normalizePollingResult(response.data);
 
         options.onProgress?.(result.stage, result.status, result.data);
 
@@ -53,6 +106,7 @@ export const useWebSocket = (taskId: string | null, options: WebSocketOptions = 
         }
       } catch (error) {
         console.error("Polling error:", error);
+        options.onError?.("Không thể lấy tiến trình chẩn đoán");
       }
     }, POLLING_INTERVAL);
   };
@@ -85,7 +139,9 @@ export const useWebSocket = (taskId: string | null, options: WebSocketOptions = 
     };
 
     socket.onerror = () => {
-      options.onError?.("WebSocket connection failed");
+      shouldReconnectRef.current = false;
+      startPolling();
+      socket.close();
     };
 
     socket.onclose = () => {

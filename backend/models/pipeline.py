@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from backend.database.models import PredictionLabel
+from backend.database.models import DiseaseType, PredictionLabel
 from backend.models.loader import model_registry
 from backend.utils.errors import InferenceAppError
 from backend.utils.logging import performance_logger
@@ -17,6 +17,7 @@ from backend.utils.logging import performance_logger
 IMAGE_SIZE = 224
 MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+TYPE_CLASSES = (DiseaseType.bacterial, DiseaseType.viral, DiseaseType.covid)
 
 
 class GradCAM:
@@ -43,10 +44,19 @@ class GradCAM:
             hook.remove()
         self._hooks.clear()
 
-    def __call__(self, input_tensor: torch.Tensor) -> np.ndarray:
+    def __call__(self, input_tensor: torch.Tensor, *, target_head: str = 'binary', class_idx: int | None = None) -> np.ndarray:
         output = self.model(input_tensor)
+        if isinstance(output, tuple):
+            logit_bin, logit_type = output
+        else:
+            logit_bin, logit_type = output, None
         self.model.zero_grad(set_to_none=True)
-        output.backward(torch.ones_like(output))
+        if target_head == 'type' and logit_type is not None:
+            resolved_idx = class_idx if class_idx is not None else int(torch.argmax(logit_type, dim=1).item())
+            score = logit_type[:, resolved_idx].sum()
+        else:
+            score = logit_bin.sum()
+        score.backward()
         if self.gradients is None or self.activations is None:
             raise InferenceAppError('Grad-CAM hooks did not capture gradients/activations')
         weights = self.gradients.mean(dim=[2, 3], keepdim=True)
@@ -87,6 +97,40 @@ def _sigmoid(x: float) -> float:
     return float(1.0 / (1.0 + np.exp(-x)))
 
 
+def _softmax(logits: np.ndarray) -> np.ndarray:
+    shifted = logits - np.max(logits)
+    exp = np.exp(shifted)
+    return exp / np.sum(exp)
+
+
+def _extract_onnx_heads(raw_outputs: list[np.ndarray], output_names: list[str]) -> tuple[float, np.ndarray | None]:
+    mapped = {name: np.array(value) for name, value in zip(output_names, raw_outputs)}
+    binary: np.ndarray | None = mapped.get('logit_binary')
+    type_logits: np.ndarray | None = mapped.get('logit_type')
+
+    if binary is None:
+        for value in mapped.values():
+            flat = np.array(value).reshape(-1)
+            if flat.size == 1:
+                binary = flat
+                break
+
+    if type_logits is None:
+        for value in mapped.values():
+            flat = np.array(value).reshape(-1)
+            if flat.size == 3:
+                type_logits = flat
+                break
+
+    if binary is None:
+        raise InferenceAppError('ONNX output does not contain binary head logits')
+
+    binary_logit = float(np.array(binary).reshape(-1)[0])
+    if type_logits is not None:
+        type_logits = np.array(type_logits).reshape(-1)
+    return binary_logit, type_logits
+
+
 def _overlay_heatmap(rgb: np.ndarray, heatmap: np.ndarray, alpha: float = 0.4) -> np.ndarray:
     heatmap = cv2.resize(heatmap, (rgb.shape[1], rgb.shape[0]))
     heat_u8 = np.uint8(255 * np.clip(heatmap, 0, 1))
@@ -97,28 +141,45 @@ def _overlay_heatmap(rgb: np.ndarray, heatmap: np.ndarray, alpha: float = 0.4) -
     return np.uint8(255 * np.clip(blended, 0, 1))
 
 
-def ensure_models_ready() -> None:
+def ensure_models_ready(*, require_gradcam: bool = True) -> None:
     if model_registry.onnx_session is None:
         raise InferenceAppError('ONNX session is not loaded')
-    if model_registry.torch_model is None:
+    if require_gradcam and model_registry.torch_model is None:
         raise InferenceAppError('Grad-CAM model is not loaded')
 
 
-def classify_image(file_path: str) -> dict[str, float | PredictionLabel | np.ndarray]:
-    ensure_models_ready()
+def classify_image(file_path: str) -> dict[str, float | PredictionLabel | DiseaseType | dict[str, float] | np.ndarray | None]:
+    ensure_models_ready(require_gradcam=False)
     try:
         rgb = _load_rgb(file_path)
         onnx_input = _preprocess_onnx(rgb)
         assert model_registry.onnx_session is not None
         input_name = model_registry.onnx_session.get_inputs()[0].name
+        output_names = [item.name for item in model_registry.onnx_session.get_outputs()]
         output = model_registry.onnx_session.run(None, {input_name: onnx_input})
-        logit = float(np.array(output[0]).reshape(-1)[0])
-        confidence = _sigmoid(logit)
-        prediction = PredictionLabel.pneumonia if confidence >= 0.5 else PredictionLabel.normal
+        binary_logit, type_logits = _extract_onnx_heads(output, output_names)
+        pneumonia_prob = _sigmoid(binary_logit)
+        prediction = PredictionLabel.pneumonia if pneumonia_prob >= 0.5 else PredictionLabel.normal
+        confidence = pneumonia_prob if prediction == PredictionLabel.pneumonia else (1.0 - pneumonia_prob)
+        disease_type: DiseaseType | None = DiseaseType.none if prediction == PredictionLabel.normal else None
+        type_probs: dict[str, float] | None = None
+
+        if prediction == PredictionLabel.pneumonia and type_logits is not None:
+            probs = _softmax(type_logits)
+            type_probs = {
+                'BACTERIAL': float(probs[0]),
+                'VIRAL': float(probs[1]),
+                'COVID': float(probs[2]),
+            }
+            disease_type = TYPE_CLASSES[int(np.argmax(probs))]
+
         return {
             'rgb': rgb,
             'prediction': prediction,
             'confidence': float(confidence),
+            'pneumonia_prob': float(pneumonia_prob),
+            'disease_type': disease_type,
+            'type_probs': type_probs,
         }
     except InferenceAppError:
         raise
@@ -126,15 +187,20 @@ def classify_image(file_path: str) -> dict[str, float | PredictionLabel | np.nda
         raise InferenceAppError(f'Inference classification failed: {exc}') from exc
 
 
-def generate_gradcam(file_path: str, rgb: np.ndarray) -> str:
-    ensure_models_ready()
+def generate_gradcam(file_path: str, rgb: np.ndarray, *, prediction: PredictionLabel, disease_type: DiseaseType | None) -> str | None:
+    if model_registry.torch_model is None:
+        return None
+    ensure_models_ready(require_gradcam=True)
     try:
         task_dir = Path(file_path).parent
         cam_input = _tensor_for_gradcam(rgb).requires_grad_(True)
         assert model_registry.torch_model is not None
         gradcam = GradCAM(model_registry.torch_model, model_registry.torch_model.features.denseblock4)
         try:
-            heatmap = gradcam(cam_input)
+            if prediction == PredictionLabel.pneumonia and disease_type in TYPE_CLASSES:
+                heatmap = gradcam(cam_input, target_head='type', class_idx=TYPE_CLASSES.index(disease_type))
+            else:
+                heatmap = gradcam(cam_input, target_head='binary')
         finally:
             gradcam.remove_hooks()
 
@@ -151,15 +217,27 @@ def generate_gradcam(file_path: str, rgb: np.ndarray) -> str:
 def run_pipeline(task_id: str, file_path: str) -> dict[str, str | float | int | PredictionLabel | None]:
     started_at = perf_counter()
     classification = classify_image(file_path)
-    heatmap_path = generate_gradcam(file_path, classification['rgb'])
+    prediction = classification['prediction']
+    disease_type = classification.get('disease_type')
+    type_probs = classification.get('type_probs')
+    heatmap_path = generate_gradcam(
+        file_path,
+        classification['rgb'],
+        prediction=prediction,
+        disease_type=disease_type if isinstance(disease_type, DiseaseType) else None,
+    )
     duration_ms = int((perf_counter() - started_at) * 1000)
     performance_logger.info('prediction_done task_id=%s processing_ms=%s confidence=%.4f', task_id, duration_ms, classification['confidence'])
     return {
-        'prediction': classification['prediction'],
+        'prediction': prediction,
         'confidence': float(classification['confidence']),
-        # DenseNet confidence is the only calibrated probability available today.
-        'prob_dn': float(classification['confidence']),
+        # Keep prob_dn as pneumonia probability for backward compatibility.
+        'prob_dn': float(classification['pneumonia_prob']),
         'prob_eff': None,
+        'disease_type': disease_type.value if isinstance(disease_type, DiseaseType) else None,
+        'bacterial_prob': float(type_probs['BACTERIAL']) if isinstance(type_probs, dict) and 'BACTERIAL' in type_probs else None,
+        'viral_prob': float(type_probs['VIRAL']) if isinstance(type_probs, dict) and 'VIRAL' in type_probs else None,
+        'covid_prob': float(type_probs['COVID']) if isinstance(type_probs, dict) and 'COVID' in type_probs else None,
         'lesion_pct': None,
         'bbox_x1': None,
         'bbox_y1': None,

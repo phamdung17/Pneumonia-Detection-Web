@@ -4,7 +4,7 @@ import { useAuthStore } from "../../stores/authStore";
 
 interface PrivateRouteProps {
   children: React.ReactNode;
-  roles?: string[];
+  roles?: Array<"admin" | "client">;
 }
 
 const PrivateRoute: React.FC<PrivateRouteProps> = ({ children, roles }) => {

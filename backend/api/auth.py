@@ -10,7 +10,7 @@ from backend.auth.jwt import create_access_token, create_refresh_token
 from backend.auth.password import hash_password, verify_password
 from backend.config import get_settings
 from backend.database.connection import get_db
-from backend.database.crud import create_audit_log, create_stored_refresh_token, create_user, get_user_by_username, get_valid_refresh_token, revoke_refresh_token
+from backend.database.crud import create_audit_log, create_stored_refresh_token, create_user, get_user_by_email, get_user_by_username, get_valid_refresh_token, revoke_refresh_token
 from backend.database.models import User, UserRole
 from backend.schemas import ChangePasswordRequest, LoginRequest, MessageResponse, RefreshRequest, TokenResponse, UserRead, UserRegister
 from backend.utils.errors import AuthenticationAppError, PermissionAppError, ValidationAppError
@@ -24,17 +24,17 @@ settings = get_settings()
 @router.post('/register', response_model=TokenResponse)
 def register(payload: UserRegister, request: Request, db: Session = Depends(get_db)) -> TokenResponse:
     check_rate_limit(f'ratelimit:register:{get_client_ip(request)}', 5, 60)
-    if payload.role not in {UserRole.admin, UserRole.client}:
-        raise ValidationAppError('Only admin or client roles are allowed for registration')
     if get_user_by_username(db, payload.username):
         raise ValidationAppError('Username already exists')
+    if get_user_by_email(db, payload.email):
+        raise ValidationAppError('Email already exists')
     user = create_user(
         db,
         username=payload.username,
+        email=payload.email,
         password_hash=hash_password(payload.password),
         full_name=payload.full_name,
-        role=payload.role,
-        department=payload.department,
+        role=UserRole.client,
     )
     access_token = create_access_token(user.id, user.role.value)
     refresh_token = create_refresh_token()

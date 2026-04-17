@@ -13,14 +13,6 @@ from backend.utils.logging import error_logger
 from backend.worker.task_state import task_state_store
 from backend.worker.websocket import manager
 
-
-def build_truthful_type_payload(prediction: PredictionLabel) -> tuple[DiseaseType | None, dict[str, float | None] | None]:
-    # No subtype model is available yet, so avoid synthetic subtype probabilities.
-    if prediction == PredictionLabel.normal:
-        return DiseaseType.none, {'BACTERIAL': 0.0, 'VIRAL': 0.0, 'COVID': 0.0}
-    return None, None
-
-
 async def run_prediction_task(prediction_id: int, task_id: str) -> None:
     db: Session = SessionLocal()
     started_at = perf_counter()
@@ -60,7 +52,15 @@ async def run_prediction_task(prediction_id: int, task_id: str) -> None:
         pipeline_result = run_pipeline(task_id, prediction.file_path)
         prediction_label = pipeline_result['prediction']
         confidence = float(pipeline_result['confidence'])
-        disease_type, type_probs = build_truthful_type_payload(prediction_label)
+        disease_type_value = pipeline_result.get('disease_type')
+        disease_type = DiseaseType(disease_type_value) if disease_type_value else None
+        type_probs = {
+            'BACTERIAL': float(pipeline_result['bacterial_prob']) if pipeline_result.get('bacterial_prob') is not None else None,
+            'VIRAL': float(pipeline_result['viral_prob']) if pipeline_result.get('viral_prob') is not None else None,
+            'COVID': float(pipeline_result['covid_prob']) if pipeline_result.get('covid_prob') is not None else None,
+        }
+        if prediction_label == PredictionLabel.normal and disease_type is None:
+            disease_type = DiseaseType.none
 
         task_state_store.set(
             task_id,
@@ -127,9 +127,9 @@ async def run_prediction_task(prediction_id: int, task_id: str) -> None:
         prediction.prob_dn = float(pipeline_result['prob_dn']) if pipeline_result.get('prob_dn') is not None else None
         prediction.prob_eff = float(pipeline_result['prob_eff']) if pipeline_result.get('prob_eff') is not None else None
         prediction.disease_type = disease_type
-        prediction.bacterial_prob = type_probs['BACTERIAL'] if type_probs else None
-        prediction.viral_prob = type_probs['VIRAL'] if type_probs else None
-        prediction.covid_prob = type_probs['COVID'] if type_probs else None
+        prediction.bacterial_prob = type_probs['BACTERIAL']
+        prediction.viral_prob = type_probs['VIRAL']
+        prediction.covid_prob = type_probs['COVID']
         prediction.lesion_pct = float(pipeline_result['lesion_pct']) if pipeline_result.get('lesion_pct') is not None else None
         prediction.bbox_x1 = int(pipeline_result['bbox_x1']) if pipeline_result.get('bbox_x1') is not None else None
         prediction.bbox_y1 = int(pipeline_result['bbox_y1']) if pipeline_result.get('bbox_y1') is not None else None
