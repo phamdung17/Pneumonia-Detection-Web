@@ -15,6 +15,10 @@ def ensure_user_schema(engine: Engine) -> None:
     with engine.begin() as connection:
         if "email" not in columns:
             connection.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255) NULL"))
+        if "phone" not in columns:
+            connection.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL"))
+        if "avatar_url" not in columns:
+            connection.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500) NULL"))
 
         connection.execute(
             text(

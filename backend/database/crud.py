@@ -36,11 +36,13 @@ def list_users(db: Session, page: int = 1, limit: int = 20, search: str | None =
             models.User.username.like(like)
             | models.User.full_name.like(like)
             | models.User.email.like(like)
+            | models.User.phone.like(like)
         )
         count_stmt = count_stmt.where(
             models.User.username.like(like)
             | models.User.full_name.like(like)
             | models.User.email.like(like)
+            | models.User.phone.like(like)
         )
     if role:
         stmt = stmt.where(models.User.role == role)
@@ -53,8 +55,16 @@ def list_users(db: Session, page: int = 1, limit: int = 20, search: str | None =
     return items, total
 
 
-def create_user(db: Session, *, username: str, email: str | None, password_hash: str, full_name: str, role: models.UserRole) -> models.User:
-    user = models.User(username=username, email=email, password_hash=password_hash, full_name=full_name, role=role)
+def create_user(db: Session, *, username: str, email: str | None, password_hash: str, full_name: str, role: models.UserRole, phone: str | None = None, avatar_url: str | None = None) -> models.User:
+    user = models.User(
+        username=username,
+        email=email,
+        phone=phone,
+        avatar_url=avatar_url,
+        password_hash=password_hash,
+        full_name=full_name,
+        role=role,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -145,9 +155,21 @@ def list_predictions_admin(db: Session, *, page: int, limit: int, user_id: int |
     return items, total
 
 
-def list_audit_logs(db: Session, *, page: int, limit: int, action: str | None = None, user_id: int | None = None, date_from: datetime | None = None) -> tuple[list[models.AuditLog], int]:
+def list_audit_logs(db: Session, *, page: int, limit: int, action: str | None = None, user_id: int | None = None, date_from: datetime | None = None, search: str | None = None) -> tuple[list[models.AuditLog], int]:
     stmt = select(models.AuditLog)
     count_stmt = select(func.count()).select_from(models.AuditLog)
+    if search:
+        like = f'%{search}%'
+        stmt = stmt.where(
+            models.AuditLog.action.like(like)
+            | models.AuditLog.target_type.like(like)
+            | models.AuditLog.target_id.like(like)
+        )
+        count_stmt = count_stmt.where(
+            models.AuditLog.action.like(like)
+            | models.AuditLog.target_type.like(like)
+            | models.AuditLog.target_id.like(like)
+        )
     if action:
         stmt = stmt.where(models.AuditLog.action == action)
         count_stmt = count_stmt.where(models.AuditLog.action == action)

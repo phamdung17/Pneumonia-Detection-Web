@@ -5,10 +5,13 @@ interface User {
   id: number;
   username: string;
   email: string | null;
+  phone?: string | null;
+  avatar_url?: string | null;
   full_name: string;
   role: "admin" | "client";
   is_active: boolean;
   created_at: string;
+  last_login?: string | null;
 }
 
 interface LoginCredentials {
@@ -22,6 +25,7 @@ interface AuthState {
   login: (credentials: LoginCredentials) => Promise<User>;
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
+  setUser: (user: User | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -58,5 +62,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.removeItem("refresh_token");
       set({ user: null, isAuthenticated: false });
     }
+  },
+  setUser: (user) => {
+    set({ user, isAuthenticated: Boolean(user) });
   },
 }));

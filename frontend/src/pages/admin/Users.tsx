@@ -1,26 +1,19 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
-import {
-  CheckCircle2,
-  Mail,
-  Search,
-  Shield,
-  User,
-  UserPlus,
-  XCircle,
-} from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import api from "../../api/axios";
-import { PAGE_SIZE, ROLES } from "../../utils/constants";
+import { DEFAULT_AVATAR, PAGE_SIZE, ROLES } from "../../utils/constants";
 
 interface AdminUser {
   id: number;
   username: string;
   email: string | null;
+  phone?: string | null;
+  avatar_url?: string | null;
   full_name: string;
   role: "admin" | "client";
   is_active: boolean;
   created_at: string;
+  last_login?: string | null;
 }
 
 interface PaginatedUsersResponse {
@@ -28,206 +21,280 @@ interface PaginatedUsersResponse {
   total: number;
 }
 
-const UsersPage: React.FC = () => {
+interface UserFormState {
+  role: "admin" | "client";
+  is_active: boolean;
+}
+
+export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [formState, setFormState] = useState<UserFormState>({ role: "client", is_active: true });
+
+  const activeUsers = useMemo(() => users.filter((user) => user.is_active).length, [users]);
+  const adminUsers = useMemo(() => users.filter((user) => user.role === "admin").length, [users]);
+
+  const loadUsers = async (searchValue = searchTerm) => {
+    setIsLoading(true);
+    try {
+      const response = await api.get<PaginatedUsersResponse>("/api/admin/users", {
+        params: {
+          page: 1,
+          limit: PAGE_SIZE,
+          search: searchValue || undefined,
+        },
+      });
+      setUsers(response.data.items);
+      setTotal(response.data.total);
+      if (selectedUser) {
+        const latestSelected = response.data.items.find((item) => item.id === selectedUser.id) || null;
+        setSelectedUser(latestSelected);
+        if (latestSelected) {
+          setFormState({
+            role: latestSelected.role,
+            is_active: latestSelected.is_active,
+          });
+        }
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail?.message || "Khong tai duoc danh sach nguoi dung.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const timer = window.setTimeout(async () => {
-      setIsLoading(true);
-      try {
-        const response = await api.get<PaginatedUsersResponse>("/api/admin/users", {
-          params: {
-            page: 1,
-            limit: PAGE_SIZE,
-            search: searchTerm || undefined,
-          },
-        });
-        setUsers(response.data.items);
-        setTotal(response.data.total);
-      } catch (error) {
-        if (axios.isAxiosError(error)) {
-          const message =
-            error.response?.data?.detail?.message ||
-            error.response?.data?.message ||
-            "Không tải được danh sách người dùng";
-          toast.error(message);
-        } else {
-          toast.error("Không tải được danh sách người dùng");
-        }
-      } finally {
-        setIsLoading(false);
-      }
+    const timer = window.setTimeout(() => {
+      void loadUsers(searchTerm);
     }, 250);
 
     return () => window.clearTimeout(timer);
   }, [searchTerm]);
 
-  const activeUsers = users.filter((user) => user.is_active).length;
-  const adminUsers = users.filter((user) => user.role === "admin").length;
+  const handleSelectUser = (user: AdminUser) => {
+    setSelectedUser(user);
+    setFormState({
+      role: user.role,
+      is_active: user.is_active,
+    });
+  };
+
+  const handleUpdateUser = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedUser) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await api.put<AdminUser>(`/api/admin/users/${selectedUser.id}`, formState);
+      setSelectedUser(response.data);
+      setUsers((prev) => prev.map((user) => (user.id === response.data.id ? response.data : user)));
+      toast.success("Cap nhat nguoi dung thanh cong.");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail?.message || "Khong cap nhat duoc nguoi dung.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleLockToggle = async (user: AdminUser) => {
+    setIsSaving(true);
+    try {
+      if (user.is_active) {
+        await api.put(`/api/admin/users/${user.id}/lock`);
+        toast.success("Da khoa tai khoan.");
+      } else {
+        await api.put(`/api/admin/users/${user.id}`, { is_active: true });
+        toast.success("Da mo khoa tai khoan.");
+      }
+      await loadUsers(searchTerm);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail?.message || "Khong thay doi duoc trang thai tai khoan.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleUnlockLoginAttempts = async (user: AdminUser) => {
+    setIsSaving(true);
+    try {
+      await api.put(`/api/admin/users/${user.id}/unlock`);
+      toast.success("Da mo khoa dang nhap.");
+      await loadUsers(searchTerm);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail?.message || "Khong mo khoa duoc tai khoan.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-8">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
           <h1 className="mb-2 font-headline text-3xl font-extrabold tracking-tight text-slate-900">
-            Quản lý người dùng
+            Quan ly nguoi dung
           </h1>
           <p className="font-medium text-slate-500">
-            Theo dõi tài khoản và phân quyền hệ thống với hai vai trò admin và client.
+            Theo doi tai khoan, doi vai tro va khoa/mo khoa truy cap cua nguoi dung.
           </p>
-        </div>
-
-        <div className="flex items-center gap-2 rounded-xl bg-sky-50 px-5 py-3 text-sm font-bold text-primary">
-          <UserPlus size={18} />
-          Tạo admin mới thực hiện trong API quản trị
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-50 text-primary">
-            <User size={24} />
-          </div>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              Tổng người dùng
-            </p>
-            <p className="text-2xl font-black text-slate-900">{total}</p>
-          </div>
+        <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tong nguoi dung</p>
+          <p className="mt-3 text-3xl font-black text-slate-900">{total}</p>
         </div>
-        <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-500">
-            <CheckCircle2 size={24} />
-          </div>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              Đang hoạt động
-            </p>
-            <p className="text-2xl font-black text-slate-900">{activeUsers}</p>
-          </div>
+        <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Dang hoat dong</p>
+          <p className="mt-3 text-3xl font-black text-emerald-600">{activeUsers}</p>
         </div>
-        <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-500">
-            <Shield size={24} />
-          </div>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              Admin trên trang
-            </p>
-            <p className="text-2xl font-black text-slate-900">{adminUsers}</p>
-          </div>
+        <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Admin tren trang</p>
+          <p className="mt-3 text-3xl font-black text-primary">{adminUsers}</p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input
-            type="text"
-            placeholder="Tìm theo tên, username hoặc email"
-            className="w-full rounded-xl bg-slate-50 py-2.5 pl-10 pr-4 text-sm outline-none ring-0 focus:bg-white focus:shadow-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-      </div>
+      <div className="grid gap-8 xl:grid-cols-[1.4fr_1fr]">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            <input
+              type="text"
+              placeholder="Tim theo ten, username, email hoac so dien thoai"
+              className="w-full rounded-xl bg-slate-50 py-2.5 px-4 text-sm outline-none ring-0 focus:bg-white focus:shadow-sm"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+          </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/50">
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  Người dùng
-                </th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  Vai trò
-                </th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  Trạng thái
-                </th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  Tạo lúc
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
+          <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="divide-y divide-slate-50">
               {isLoading ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-10 text-center text-sm font-medium text-slate-400">
-                    Đang tải dữ liệu...
-                  </td>
-                </tr>
+                <div className="px-6 py-10 text-center text-sm font-medium text-slate-400">Dang tai du lieu...</div>
               ) : users.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-10 text-center text-sm font-medium text-slate-400">
-                    Không có người dùng phù hợp.
-                  </td>
-                </tr>
+                <div className="px-6 py-10 text-center text-sm font-medium text-slate-400">Khong co nguoi dung phu hop.</div>
               ) : (
                 users.map((user) => (
-                  <tr key={user.id} className="transition-colors hover:bg-slate-50/50">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={`https://picsum.photos/seed/${user.username}/100/100`}
-                          alt={user.full_name}
-                          className="h-10 w-10 rounded-full object-cover ring-2 ring-slate-100"
-                          referrerPolicy="no-referrer"
-                        />
-                        <div>
-                          <p className="text-sm font-bold text-slate-900">{user.full_name}</p>
-                          <p className="text-xs font-medium text-slate-400">@{user.username}</p>
-                          <p className="flex items-center gap-1 text-xs text-slate-400">
-                            <Mail size={12} />
-                            {user.email || "-"}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                            user.role === "admin"
-                              ? "bg-sky-50 text-primary"
-                              : "bg-slate-50 text-slate-500"
-                          }`}
-                        >
-                          {user.role === "admin" ? <Shield size={16} /> : <User size={16} />}
-                        </div>
-                        <span className="text-sm font-bold text-slate-700">
-                          {ROLES[user.role]}
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => handleSelectUser(user)}
+                    className={`flex w-full items-start gap-4 px-6 py-4 text-left transition hover:bg-slate-50 ${
+                      selectedUser?.id === user.id ? "bg-sky-50/70" : ""
+                    }`}
+                  >
+                    <img
+                      src={user.avatar_url || DEFAULT_AVATAR}
+                      alt={user.full_name}
+                      className="h-12 w-12 rounded-2xl object-cover ring-2 ring-slate-100"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-bold text-slate-900">{user.full_name}</p>
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${
+                          user.is_active ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                        }`}>
+                          {user.is_active ? "active" : "inactive"}
                         </span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-tighter ring-1 ring-inset ${
-                          user.is_active
-                            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                            : "bg-red-50 text-red-700 ring-red-200"
-                        }`}
-                      >
-                        {user.is_active ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                        {user.is_active ? "active" : "inactive"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-slate-500">
-                      {new Date(user.created_at).toLocaleString()}
-                    </td>
-                  </tr>
+                      <p className="mt-1 text-xs font-medium text-slate-500">@{user.username}</p>
+                      <p className="mt-1 text-xs text-slate-400">{user.email || "-"}</p>
+                      <p className="mt-1 text-xs text-slate-400">{user.phone || "Chua cap nhat so dien thoai"}</p>
+                    </div>
+                    <div className="text-right text-xs text-slate-400">
+                      <p>{ROLES[user.role]}</p>
+                      <p className="mt-2">{new Date(user.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </button>
                 ))
               )}
-            </tbody>
-          </table>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
+          {!selectedUser ? (
+            <div className="flex h-full min-h-[320px] items-center justify-center text-center text-sm font-medium text-slate-400">
+              Chon mot nguoi dung de xem va cap nhat thong tin quan tri.
+            </div>
+          ) : (
+            <form onSubmit={handleUpdateUser} className="space-y-6">
+              <div className="flex items-center gap-4">
+                <img
+                  src={selectedUser.avatar_url || DEFAULT_AVATAR}
+                  alt={selectedUser.full_name}
+                  className="h-16 w-16 rounded-3xl object-cover ring-4 ring-slate-50"
+                  referrerPolicy="no-referrer"
+                />
+                <div>
+                  <h2 className="font-headline text-2xl font-black text-slate-900">{selectedUser.full_name}</h2>
+                  <p className="text-sm font-medium text-slate-500">@{selectedUser.username}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+                <p>Email: <span className="font-semibold text-slate-800">{selectedUser.email || "-"}</span></p>
+                <p>Phone: <span className="font-semibold text-slate-800">{selectedUser.phone || "-"}</span></p>
+                <p>Lan dang nhap cuoi: <span className="font-semibold text-slate-800">{selectedUser.last_login ? new Date(selectedUser.last_login).toLocaleString() : "Chua co"}</span></p>
+              </div>
+
+              <label className="space-y-2">
+                <span className="text-sm font-semibold text-slate-700">Vai tro</span>
+                <select
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-300"
+                  value={formState.role}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, role: event.target.value as "admin" | "client" }))}
+                >
+                  <option value="client">Nguoi dung</option>
+                  <option value="admin">Quan tri vien</option>
+                </select>
+              </label>
+
+              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={formState.is_active}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, is_active: event.target.checked }))}
+                />
+                <span className="text-sm font-semibold text-slate-700">Tai khoan duoc phep dang nhap</span>
+              </label>
+
+              <div className="grid gap-3">
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white transition disabled:opacity-60"
+                >
+                  {isSaving ? "Dang luu..." : "Luu thay doi"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLockToggle(selectedUser)}
+                  disabled={isSaving}
+                  className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition disabled:opacity-60"
+                >
+                  {selectedUser.is_active ? "Khoa tai khoan" : "Mo khoa tai khoan"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleUnlockLoginAttempts(selectedUser)}
+                  disabled={isSaving}
+                  className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-bold text-slate-700 transition disabled:opacity-60"
+                >
+                  Reset khoa dang nhap
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </div>
   );
-};
-
-export default UsersPage;
+}

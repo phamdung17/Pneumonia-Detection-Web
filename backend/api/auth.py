@@ -12,7 +12,7 @@ from backend.config import get_settings
 from backend.database.connection import get_db
 from backend.database.crud import create_audit_log, create_stored_refresh_token, create_user, get_user_by_email, get_user_by_username, get_valid_refresh_token, revoke_refresh_token
 from backend.database.models import User, UserRole
-from backend.schemas import ChangePasswordRequest, LoginRequest, MessageResponse, RefreshRequest, TokenResponse, UserRead, UserRegister
+from backend.schemas import ChangePasswordRequest, LoginRequest, MessageResponse, ProfileUpdateRequest, RefreshRequest, TokenResponse, UserRead, UserRegister
 from backend.utils.errors import AuthenticationAppError, PermissionAppError, ValidationAppError
 from backend.utils.rate_limit import check_rate_limit
 
@@ -98,11 +98,47 @@ def me(current_user: User = Depends(get_current_user)) -> UserRead:
     return UserRead.model_validate(current_user)
 
 
+@router.put('/me', response_model=UserRead)
+def update_profile(payload: ProfileUpdateRequest, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> UserRead:
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise AuthenticationAppError('Current password is incorrect')
+    existing = get_user_by_email(db, str(payload.email))
+    if existing and existing.id != current_user.id:
+        raise ValidationAppError('Email already exists')
+    current_user.full_name = payload.full_name
+    current_user.email = str(payload.email)
+    current_user.phone = payload.phone
+    current_user.avatar_url = payload.avatar_url
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    create_audit_log(
+        db,
+        user_id=current_user.id,
+        action='profile_update',
+        target_type='user',
+        target_id=str(current_user.id),
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get('user-agent'),
+        detail={'updated_fields': ['full_name', 'email', 'phone', 'avatar_url']},
+    )
+    return UserRead.model_validate(current_user)
+
+
 @router.put('/me/password', response_model=MessageResponse)
-def change_password(payload: ChangePasswordRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MessageResponse:
+def change_password(payload: ChangePasswordRequest, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MessageResponse:
     if not verify_password(payload.old_password, current_user.password_hash):
         raise AuthenticationAppError('Old password is incorrect')
     current_user.password_hash = hash_password(payload.new_password)
     db.add(current_user)
     db.commit()
+    create_audit_log(
+        db,
+        user_id=current_user.id,
+        action='password_change',
+        target_type='user',
+        target_id=str(current_user.id),
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get('user-agent'),
+    )
     return MessageResponse(message='Password changed successfully')

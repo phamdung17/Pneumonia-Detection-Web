@@ -7,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_ENV_FILE = BASE_DIR / '.env'
+FALLBACK_ENV_FILE = BASE_DIR / '.env.example'
 
 
 def _to_sqlite_absolute_url(raw_url: str) -> str:
@@ -24,7 +26,7 @@ def _to_sqlite_absolute_url(raw_url: str) -> str:
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=BASE_DIR / '.env',
+        env_file=DEFAULT_ENV_FILE if DEFAULT_ENV_FILE.exists() else FALLBACK_ENV_FILE,
         env_file_encoding='utf-8',
         extra='ignore',
     )

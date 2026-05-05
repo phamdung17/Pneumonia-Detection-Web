@@ -6,8 +6,11 @@ import HistoryPage from "./pages/History";
 import LoginPage from "./pages/Login";
 import NotFoundPage from "./pages/NotFound";
 import PredictPage from "./pages/Predict";
+import ProfilePage from "./pages/Profile";
 import RegisterPage from "./pages/Register";
-import StatsPage from "./pages/Stats.tsx";
+import StatsPage from "./pages/Stats";
+import AdminAuditPage from "./pages/admin/AuditLogs";
+import AdminDashboardPage from "./pages/admin/Dashboard";
 import UsersPage from "./pages/admin/Users";
 
 export default function App() {
@@ -72,9 +75,17 @@ export default function App() {
           element={
             <PrivateRoute>
               <Layout>
-                <div className="flex h-[60vh] flex-col items-center justify-center text-slate-400">
-                  Hồ sơ người dùng
-                </div>
+                <ProfilePage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <PrivateRoute roles={["admin"]}>
+              <Layout>
+                <AdminDashboardPage />
               </Layout>
             </PrivateRoute>
           }
@@ -90,11 +101,21 @@ export default function App() {
           }
         />
         <Route
+          path="/admin/audit"
+          element={
+            <PrivateRoute roles={["admin"]}>
+              <Layout>
+                <AdminAuditPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
           path="/forbidden"
           element={
             <Layout>
               <div className="flex h-[60vh] flex-col items-center justify-center text-slate-400">
-                Bạn không có quyền truy cập trang này.
+                Ban khong co quyen truy cap trang nay.
               </div>
             </Layout>
           }
