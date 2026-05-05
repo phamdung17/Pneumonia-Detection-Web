@@ -1,44 +1,44 @@
-import { Search, Bell, Settings } from "lucide-react";
+import { Bell, Search, Settings } from "lucide-react";
 
 export default function TopBar() {
   return (
-    <header className="fixed top-0 w-full z-50 flex items-center justify-between px-6 h-16 bg-white/70 backdrop-blur-xl border-b border-slate-200/50 shadow-sm shadow-slate-200/50">
+    <header className="fixed top-0 z-50 flex h-16 w-full items-center justify-between border-b border-slate-200/50 bg-white/70 px-6 shadow-sm shadow-slate-200/50 backdrop-blur-xl">
       <div className="flex items-center gap-8">
-        <span className="font-headline font-bold text-primary tracking-tighter text-xl">Aetheris Clinical</span>
-        <nav className="hidden md:flex items-center gap-6">
-          <a className="text-slate-500 hover:text-primary font-headline text-sm tracking-tight transition-colors" href="#">Tổng quan</a>
-          <a className="text-slate-500 hover:text-primary font-headline text-sm tracking-tight transition-colors" href="#">Hồ sơ bệnh nhân</a>
-          <a className="text-slate-500 hover:text-primary font-headline text-sm tracking-tight transition-colors" href="#">Báo cáo xét nghiệm</a>
+        <span className="font-headline text-xl font-bold tracking-tighter text-primary">Aetheris Clinical</span>
+        <nav className="hidden items-center gap-6 md:flex">
+          <a className="font-headline text-sm tracking-tight text-slate-500 transition-colors hover:text-primary" href="#">Tổng quan</a>
+          <a className="font-headline text-sm tracking-tight text-slate-500 transition-colors hover:text-primary" href="#">Hồ sơ bệnh nhân</a>
+          <a className="font-headline text-sm tracking-tight text-slate-500 transition-colors hover:text-primary" href="#">Báo cáo xét nghiệm</a>
         </nav>
       </div>
 
       <div className="flex items-center gap-4">
         <div className="relative hidden sm:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input 
-            className="pl-10 pr-4 py-1.5 bg-slate-100 border-none rounded-full text-sm focus:ring-2 focus:ring-primary w-64 outline-none" 
-            placeholder="Tìm mã chẩn đoán..." 
+          <input
+            className="w-64 rounded-full border-none bg-slate-100 py-1.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Tìm mã chẩn đoán..."
             type="text"
           />
         </div>
-        
-        <button className="p-2 text-slate-500 hover:bg-slate-50 transition-colors rounded-full relative">
+
+        <button className="relative rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-50">
           <Bell size={20} />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-tertiary rounded-full"></span>
+          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-tertiary"></span>
         </button>
-        
-        <button className="p-2 text-slate-500 hover:bg-slate-50 transition-colors rounded-full">
+
+        <button className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-50">
           <Settings size={20} />
         </button>
 
-        <div className="flex items-center gap-3 pl-2 border-l border-slate-200">
-          <div className="text-right hidden lg:block">
+        <div className="flex items-center gap-3 border-l border-slate-200 pl-2">
+          <div className="hidden text-right lg:block">
             <p className="text-xs font-bold text-slate-900">Dr. Julian Vane</p>
-            <p className="text-[10px] text-slate-500 font-medium">Trưởng nhóm lâm sàng</p>
+            <p className="text-[10px] font-medium text-slate-500">Trưởng nhóm lâm sàng</p>
           </div>
-          <img 
-            alt="Dr. Julian Vane" 
-            className="w-8 h-8 rounded-full object-cover ring-2 ring-primary-container/20" 
+          <img
+            alt="Dr. Julian Vane"
+            className="h-8 w-8 rounded-full object-cover ring-2 ring-primary-container/20"
             src="https://picsum.photos/seed/doctor/100/100"
             referrerPolicy="no-referrer"
           />

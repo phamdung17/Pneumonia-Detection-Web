@@ -1,4 +1,4 @@
- import React, { useState } from "react";
+import React, { useState } from "react";
 import axios from "axios";
 import { motion } from "motion/react";
 import { ArrowRight, Lock, ShieldCheck, User } from "lucide-react";
@@ -182,7 +182,7 @@ const LoginPage: React.FC = () => {
           </form>
 
           <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-slate-600">
-           Hệ thống chỉ hỗ trợ sàng lọc, không thay thế chẩn đoán y khoa chính thức.
+            Hệ thống chỉ hỗ trợ sàng lọc, không thay thế chẩn đoán y khoa chính thức.
           </div>
 
           <div className="pt-2 text-center">

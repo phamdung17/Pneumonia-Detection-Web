@@ -74,7 +74,7 @@ const RegisterPage: React.FC = () => {
             transition={{ delay: 0.2 }}
             className="font-headline text-5xl font-black leading-tight tracking-tighter text-white"
           >
-            Tạo tài khoản 
+            Tạo tài khoản
             <br />
             <span className="text-primary">để bắt đầu sử dụng hệ thống</span>
           </motion.h2>
@@ -85,13 +85,10 @@ const RegisterPage: React.FC = () => {
             className="max-w-md text-lg font-medium text-slate-400"
           >
             Hệ thống chỉ hỗ trợ sàng lọc, không thay thế chẩn đoán y khoa chính thức.
-           
           </motion.p>
         </div>
 
         <div className="relative z-10 flex items-center gap-8 border-t border-white/10 pt-8">
-          <div className="flex flex-col">
-          </div>
           <div className="flex flex-col">
             <span className="text-2xl font-black tracking-tight text-white">JWT</span>
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
@@ -117,8 +114,6 @@ const RegisterPage: React.FC = () => {
             <h1 className="font-headline text-4xl font-black tracking-tight text-slate-900">
               Tạo tài khoản mới
             </h1>
-            <p className="font-medium text-slate-500">
-            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -219,8 +214,6 @@ const RegisterPage: React.FC = () => {
                 />
               </div>
             </div>
-
-      
 
             <div className="pt-2">
               <button

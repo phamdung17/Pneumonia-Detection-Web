@@ -182,16 +182,16 @@ const StatsPage: React.FC = () => {
             </span>
           )}
         </div>
-        <p className="text-slate-500 font-medium">
+        <p className="font-medium text-slate-500">
           Bạn đã thực hiện {data.summary.total_cases} ca chẩn đoán. Hoạt động gần nhất: {data.summary.last_activity_at ? formatDate(data.summary.last_activity_at) : "Chưa có"}.
         </p>
       </section>
 
       <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
         {summaryCards.map((card) => (
-          <div key={card.title} className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-all hover:border-primary/20 group">
+          <div key={card.title} className="group rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-all hover:border-primary/20">
             <div className="mb-4 flex items-start justify-between">
-              <div className={`h-10 w-10 rounded-full ${card.iconBg} flex items-center justify-center transition-transform group-hover:scale-110`}>
+              <div className={`flex h-10 w-10 items-center justify-center rounded-full ${card.iconBg} transition-transform group-hover:scale-110`}>
                 {card.icon}
               </div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Cá nhân</span>
@@ -309,7 +309,7 @@ const StatsPage: React.FC = () => {
                     <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Kết quả</th>
                     <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Độ tin cậy</th>
                     <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Trạng thái</th>
-                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-right text-slate-400">Xử lý</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-widest text-slate-400">Xử lý</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
