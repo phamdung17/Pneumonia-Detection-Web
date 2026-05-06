@@ -8,8 +8,16 @@ interface PrivateRouteProps {
 }
 
 const PrivateRoute: React.FC<PrivateRouteProps> = ({ children, roles }) => {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated, isInitializing, hasInitialized } = useAuthStore();
   const location = useLocation();
+
+  if (isInitializing || !hasInitialized) {
+    return (
+      <div className="flex h-screen items-center justify-center text-sm font-semibold text-slate-500">
+        Dang khoi phuc phien dang nhap...
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to={`/login?next=${location.pathname}`} replace />;

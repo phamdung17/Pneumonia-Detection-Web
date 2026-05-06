@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from backend.api.predict import serialize_prediction
+from ..api.predict import serialize_prediction
 from backend.auth.dependencies import get_current_user
 from backend.database.connection import get_db
 from backend.database.crud import create_audit_log, get_prediction_by_id, list_predictions_for_user

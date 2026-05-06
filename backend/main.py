@@ -9,12 +9,14 @@ from backend.api import admin, auth, health, history, predict, stats
 from backend.auth.jwt import decode_access_token
 from backend.config import get_settings
 from backend.database.connection import Base, engine
-from backend.database.schema_sync import ensure_user_schema
+from backend.database.schema_sync import ensure_split_schema
 from backend.models.loader import model_registry
 from backend.utils.errors import AppError, error_payload
 from backend.utils.file import resolve_asset_path
 from backend.utils.logging import error_logger, request_logger
 from backend.utils.rate_limit import check_rate_limit
+from backend.worker.task_state import task_state_store
+from backend.worker.websocket import manager
 
 
 settings = get_settings()
@@ -23,7 +25,7 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
-    ensure_user_schema(engine)
+    ensure_split_schema(engine)
     model_registry.load()
     yield
 
@@ -73,7 +75,15 @@ def public_static(task_id: str, filename: str) -> FileResponse:
 
 @app.websocket('/ws/{task_id}')
 async def prediction_ws_alias(websocket: WebSocket, task_id: str) -> None:
-    await predict.prediction_ws(websocket, task_id)
+    await manager.connect(task_id, websocket)
+    state = task_state_store.get(task_id)
+    if state:
+        await websocket.send_json(state)
+    try:
+        while True:
+            await websocket.receive_text()
+    except Exception:
+        manager.disconnect(task_id, websocket)
 
 
 app.include_router(auth.router)

@@ -96,6 +96,8 @@ export default function PredictiveAnalysis() {
   const [zoomImage, setZoomImage] = React.useState<{ src: string; alt: string } | null>(null);
   const [isSaving, setIsSaving] = React.useState<boolean>(false);
   const [isSavingPatient, setIsSavingPatient] = React.useState<boolean>(false);
+  const [isConfirming, setIsConfirming] = React.useState<boolean>(false);
+  const [isExporting, setIsExporting] = React.useState<boolean>(false);
 
   const fetchPredictionById = React.useCallback(async (predictionId: string) => {
     const response = await api.get(`/api/history/${predictionId}`);
@@ -232,9 +234,14 @@ export default function PredictiveAnalysis() {
 
   const handleConfirm = async (confirmed: boolean) => {
     if (!result) return;
-    await api.put(`/api/predict/${result.id}/confirm`, { confirmed });
-    setResult((prev) => (prev ? { ...prev, doctor_confirmed: confirmed } : prev));
-    toast.success(confirmed ? "Đã xác nhận kết quả" : "Đã từ chối kết quả");
+    setIsConfirming(true);
+    try {
+      await api.put(`/api/predict/${result.id}/confirm`, { confirmed });
+      setResult((prev) => (prev ? { ...prev, doctor_confirmed: confirmed } : prev));
+      toast.success(confirmed ? "Da xac nhan ket qua" : "Da tu choi ket qua");
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   const handleExportPDF = async () => {
@@ -244,7 +251,8 @@ export default function PredictiveAnalysis() {
     }
 
     try {
-      const response = await api.get(`/api/predict/${result.id}/export`, { responseType: "blob" });
+      setIsExporting(true);
+      const response = await api.get(`/api/predict/${result.id}/pdf`, { responseType: "blob" });
       const blobUrl = URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
       const anchor = document.createElement("a");
       anchor.href = blobUrl;
@@ -253,6 +261,8 @@ export default function PredictiveAnalysis() {
       URL.revokeObjectURL(blobUrl);
     } catch {
       toast.error("Không thể xuất PDF lúc này");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -516,7 +526,7 @@ export default function PredictiveAnalysis() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => void handleConfirm(true)}
-                      disabled={!result}
+                      disabled={!result || isConfirming}
                       className="flex-1 bg-secondary text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-emerald-100"
                     >
                       <Check size={18} />
@@ -524,7 +534,7 @@ export default function PredictiveAnalysis() {
                     </button>
                     <button
                       onClick={() => void handleConfirm(false)}
-                      disabled={!result}
+                      disabled={!result || isConfirming}
                       className="flex-1 bg-sky-100 text-primary py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
                     >
                       <X size={18} />
@@ -547,7 +557,7 @@ export default function PredictiveAnalysis() {
 
       <button
         onClick={() => void handleExportPDF()}
-        disabled={!result}
+        disabled={!result || isExporting}
         className="fixed bottom-8 right-8 w-14 h-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 disabled:opacity-50 disabled:hover:scale-100"
       >
         <Printer size={24} />

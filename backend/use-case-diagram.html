@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Use Case Diagram - Pneumonia Detection System</title>
+    <script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 1400px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .diagram-wrapper {
+            background: #f9f9f9;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            overflow-x: auto;
+            text-align: center;
+        }
+
+        .diagram-wrapper img {
+            max-width: 100%;
+            height: auto;
+            display: inline-block;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            background: #667eea;
+            color: white;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .info-section {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .info-section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .info-section ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .info-section li {
+            padding: 8px 0;
+            color: #333;
+            display: flex;
+            align-items: center;
+        }
+
+        .info-section li:before {
+            content: "▸";
+            color: #667eea;
+            font-weight: bold;
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+
+        .legend {
+            background: #f0f4ff;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+
+        .legend h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            color: #333;
+        }
+
+        .legend-icon {
+            width: 40px;
+            height: 40px;
+            margin-right: 15px;
+            border: 2px solid #333;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .container {
+                box-shadow: none;
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 Use Case Diagram</h1>
+        <p class="subtitle">Hệ Thống Phát Hiện Viêm Phổi (Pneumonia Detection System)</p>
+
+        <div class="controls">
+            <button onclick="downloadDiagram()">⬇️ Tải PNG</button>
+            <button onclick="printDiagram()">🖨️ In / Lưu PDF</button>
+            <button onclick="copyCode()">📋 Copy PlantUML Code</button>
+        </div>
+
+        <div class="diagram-wrapper" id="diagramContainer">
+            <img id="diagramImage" src="" alt="Use Case Diagram">
+        </div>
+
+        <div class="info-section">
+            <h3>📌 Actors (Người Tham Gia)</h3>
+            <ul>
+                <li><strong>👤 User (Technician/Client):</strong> Chuyên viên kỹ thuật hoặc khách hàng - Upload ảnh, xem kết quả</li>
+                <li><strong>👨‍⚕️ Doctor:</strong> Bác sĩ - Xét duyệt và xác nhận kết quả dự đoán</li>
+                <li><strong>👨‍💼 Admin:</strong> Quản trị viên - Quản lý người dùng và hệ thống</li>
+            </ul>
+        </div>
+
+        <div class="info-section">
+            <h3>🎯 Use Cases Chính</h3>
+            <ul>
+                <li><strong>Authentication:</strong> Đăng ký, Đăng nhập, Đăng xuất</li>
+                <li><strong>Prediction:</strong> Upload ảnh, Dự đoán đơn, Dự đoán hàng loạt, Theo dõi tiến độ</li>
+                <li><strong>History:</strong> Xem lịch sử, Chi tiết dự đoán, Xét duyệt bác sĩ</li>
+                <li><strong>Statistics:</strong> Xem thống kê, Tạo báo cáo</li>
+                <li><strong>Administration:</strong> Quản lý người dùng, Xem audit logs</li>
+            </ul>
+        </div>
+
+        <div class="legend">
+            <h3>📖 Huyền Thoại (Legend)</h3>
+            <div class="legend-item">
+                <div class="legend-icon">🚶</div>
+                <span><strong>Actor:</strong> Người hoặc hệ thống bên ngoài tương tác với hệ thống</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-icon">⭕</div>
+                <span><strong>Use Case:</strong> Chức năng hoặc tính năng của hệ thống</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-icon">→</div>
+                <span><strong>Relationship:</strong> Mối quan hệ giữa actor và use case</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-icon">📦</div>
+                <span><strong>System Boundary:</strong> Ranh giới của hệ thống</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // PlantUML code for the diagram
+        const plantUmlCode = `
+@startuml Pneumonia_Detection_System
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam roundcornersize 15
+
+left to right direction
+
+' Style definitions
+skinparam actor {
+    BackgroundColor #90EE90
+    BorderColor #228B22
+    FontColor #000000
+}
+
+skinparam usecase {
+    BackgroundColor #87CEEB
+    BorderColor #4682B4
+    FontColor #000000
+}
+
+' Actors
+:User (Technician)\\nTechnician/Client: as User
+:Doctor: as Doctor
+:Admin: as Admin
+:System (AI): as System
+
+rectangle "Hệ Thống Phát Hiện Viêm Phổi" {
+    ' Authentication Use Cases
+    (Đăng Ký Tài Khoản) as UC1
+    (Đăng Nhập) as UC2
+    (Đăng Xuất) as UC3
+    
+    ' Prediction Use Cases
+    (Upload Ảnh X-Ray) as UC4
+    (Dự Đoán Đơn) as UC5
+    (Dự Đoán Hàng Loạt) as UC6
+    (Theo Dõi Tiến Độ) as UC7
+    (Tải Kết Quả PDF) as UC8
+    
+    ' History Use Cases
+    (Xem Lịch Sử) as UC9
+    (Xem Chi Tiết) as UC10
+    (Xét Duyệt Bác Sĩ) as UC11
+    (Thêm Ghi Chú) as UC12
+    (Xác Nhận Kết Quả) as UC13
+    
+    ' Statistics Use Cases
+    (Xem Dashboard) as UC14
+    (Xem Biểu Đồ) as UC15
+    (Xuất Báo Cáo) as UC16
+    
+    ' Admin Use Cases
+    (Quản Lý Người Dùng) as UC17
+    (Tạo/Sửa/Xóa User) as UC18
+    (Xem Nhật Ký Kiểm Toán) as UC19
+    
+    ' Processing Use Cases
+    (Xử Lý Công Việc) as UC20
+    (Chạy Mô Hình AI) as UC21
+    (Tạo Heatmap) as UC22
+    (Gửi Thông Báo) as UC23
+}
+
+' User relationships
+User --> UC1
+User --> UC2
+User --> UC4
+User --> UC5
+User --> UC7
+User --> UC9
+User --> UC14
+
+' Doctor relationships
+Doctor --> UC2
+Doctor --> UC10
+Doctor --> UC11
+Doctor --> UC12
+Doctor --> UC13
+Doctor --> UC14
+
+' Admin relationships
+Admin --> UC2
+Admin --> UC17
+Admin --> UC18
+Admin --> UC19
+Admin --> UC14
+
+' System relationships
+System --> UC20
+System --> UC21
+System --> UC22
+System --> UC23
+
+' Include relationships
+UC5 ..> UC7 : includes
+UC5 ..> UC20 : includes
+UC5 ..> UC21 : includes
+UC5 ..> UC22 : includes
+UC5 ..> UC23 : includes
+UC6 ..> UC5 : includes
+UC8 ..> UC10 : includes
+UC18 ..> UC17 : includes
+
+' Extend relationships
+UC11 ..|> UC10 : extends
+UC12 ..|> UC10 : extends
+UC13 ..|> UC11 : extends
+UC15 ..|> UC14 : extends
+UC16 ..|> UC15 : extends
+
+@enduml
+        `.trim();
+
+        // Generate PlantUML URL
+        function generateDiagramUrl() {
+            const encoded = PlantUMLEncoder.encode(plantUmlCode);
+            return `https://www.plantuml.com/plantuml/png/${encoded}`;
+        }
+
+        // Load diagram on page load
+        function loadDiagram() {
+            const url = generateDiagramUrl();
+            document.getElementById('diagramImage').src = url;
+            console.log('Diagram loaded from:', url);
+        }
+
+        // Download diagram
+        function downloadDiagram() {
+            const url = generateDiagramUrl();
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'use-case-diagram.png';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Print diagram
+        function printDiagram() {
+            window.print();
+        }
+
+        // Copy PlantUML code
+        function copyCode() {
+            navigator.clipboard.writeText(plantUmlCode).then(() => {
+                alert('PlantUML code copied to clipboard!\\n\\nBạn có thể paste vào PlantUML editor để chỉnh sửa.');
+            }).catch(err => {
+                alert('Failed to copy code');
+            });
+        }
+
+        // Load diagram when page loads
+        window.addEventListener('load', loadDiagram);
+    </script>
+</body>
+</html>

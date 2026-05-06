@@ -62,6 +62,8 @@ const HistoryDetailPage: React.FC = () => {
   const [loading, setLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSavingPatient, setIsSavingPatient] = React.useState(false);
+  const [isConfirming, setIsConfirming] = React.useState(false);
+  const [isExporting, setIsExporting] = React.useState(false);
   const [patientDraft, setPatientDraft] = React.useState<PatientDraft>({
     patient_name: "",
     patient_age: "",
@@ -115,9 +117,14 @@ const HistoryDetailPage: React.FC = () => {
 
   const handleConfirm = async (confirmed: boolean) => {
     if (!detail) return;
-    await api.put(`/api/predict/${detail.id}/confirm`, { confirmed });
-    toast.success(confirmed ? "Đã xác nhận kết quả" : "Đã từ chối kết quả");
-    await loadDetail();
+    setIsConfirming(true);
+    try {
+      await api.put(`/api/predict/${detail.id}/confirm`, { confirmed });
+      toast.success(confirmed ? "Da xac nhan ket qua" : "Da tu choi ket qua");
+      await loadDetail();
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   const handleSavePatientInfo = async () => {
@@ -155,13 +162,18 @@ const HistoryDetailPage: React.FC = () => {
 
   const handleExportPDF = async () => {
     if (!detail) return;
-    const response = await api.get(`/api/predict/${detail.id}/export`, { responseType: "blob" });
-    const blobUrl = URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
-    const anchor = document.createElement("a");
-    anchor.href = blobUrl;
-    anchor.download = `XR-${detail.id}.pdf`;
-    anchor.click();
-    URL.revokeObjectURL(blobUrl);
+    setIsExporting(true);
+    try {
+      const response = await api.get(`/api/predict/${detail.id}/pdf`, { responseType: "blob" });
+      const blobUrl = URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+      const anchor = document.createElement("a");
+      anchor.href = blobUrl;
+      anchor.download = `XR-${detail.id}.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(blobUrl);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (loading) {
@@ -186,7 +198,7 @@ const HistoryDetailPage: React.FC = () => {
           Quay lại
         </button>
 
-        <button onClick={handleExportPDF} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600">
+        <button onClick={handleExportPDF} disabled={isExporting} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 disabled:opacity-50">
           <Download size={16} />
           Xuất PDF
         </button>
@@ -267,11 +279,11 @@ const HistoryDetailPage: React.FC = () => {
             </div>
 
             <div className="mt-6 flex gap-2 border-t border-slate-50 pt-6">
-              <button onClick={() => handleConfirm(true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-50 py-2.5 text-xs font-bold text-emerald-700">
+              <button onClick={() => handleConfirm(true)} disabled={isConfirming} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-50 py-2.5 text-xs font-bold text-emerald-700 disabled:opacity-50">
                 <Check size={14} />
                 Xác nhận
               </button>
-              <button onClick={() => handleConfirm(false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-red-50 py-2.5 text-xs font-bold text-red-700">
+              <button onClick={() => handleConfirm(false)} disabled={isConfirming} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-red-50 py-2.5 text-xs font-bold text-red-700 disabled:opacity-50">
                 <X size={14} />
                 Từ chối
               </button>

@@ -5,16 +5,17 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from backend.auth.dependencies import get_client_ip, get_current_user
-from backend.auth.jwt import create_access_token, create_refresh_token
-from backend.auth.password import hash_password, verify_password
-from backend.config import get_settings
-from backend.database.connection import get_db
-from backend.database.crud import create_audit_log, create_stored_refresh_token, create_user, get_user_by_email, get_user_by_username, get_valid_refresh_token, revoke_refresh_token
-from backend.database.models import User, UserRole
-from backend.schemas import ChangePasswordRequest, LoginRequest, MessageResponse, ProfileUpdateRequest, RefreshRequest, TokenResponse, UserRead, UserRegister
-from backend.utils.errors import AuthenticationAppError, PermissionAppError, ValidationAppError
-from backend.utils.rate_limit import check_rate_limit
+from ..auth.dependencies import get_client_ip, get_current_user
+from ..auth.jwt import create_access_token, create_refresh_token
+from ..auth.password import hash_password, verify_password
+from ..config import get_settings
+from ..database.connection import get_db
+from ..database.crud import create_audit_log, create_stored_refresh_token, create_user, get_user_by_email, get_user_by_username, get_valid_refresh_token, revoke_refresh_token
+from ..database.helpers import update_user_security_log, get_user_security_log
+from ..database.models import User, UserRole
+from ..schemas import ChangePasswordRequest, LoginRequest, MessageResponse, ProfileUpdateRequest, RefreshRequest, TokenResponse, UserRead, UserRegister
+from ..utils.errors import AuthenticationAppError, PermissionAppError, ValidationAppError
+from ..utils.rate_limit import check_rate_limit
 
 
 router = APIRouter(prefix='/api/auth', tags=['auth'])

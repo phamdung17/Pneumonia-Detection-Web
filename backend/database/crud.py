@@ -4,9 +4,9 @@ from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import Select, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
-from backend.database import models
+from . import models
 
 
 def hash_refresh_token(token: str) -> str:
@@ -16,33 +16,57 @@ def hash_refresh_token(token: str) -> str:
 
 
 def get_user_by_username(db: Session, username: str) -> models.User | None:
-    return db.scalar(select(models.User).where(models.User.username == username))
+    return db.scalar(
+        select(models.User)
+        .where(models.User.username == username)
+        .options(
+            joinedload(models.User.user_profile),
+            joinedload(models.User.user_security_log),
+        )
+    )
 
 
 def get_user_by_email(db: Session, email: str) -> models.User | None:
-    return db.scalar(select(models.User).where(models.User.email == email))
+    """Get user by email (from user_profiles table)"""
+    from . import helpers
+    user_profile = db.query(models.UserProfile).filter(
+        models.UserProfile.email == email
+    ).first()
+    if user_profile:
+        return db.get(models.User, user_profile.user_id)
+    return None
 
 
 def get_user_by_id(db: Session, user_id: int) -> models.User | None:
-    return db.get(models.User, user_id)
+    return db.scalar(
+        select(models.User)
+        .where(models.User.id == user_id)
+        .options(
+            joinedload(models.User.user_profile),
+            joinedload(models.User.user_security_log),
+        )
+    )
 
 
 def list_users(db: Session, page: int = 1, limit: int = 20, search: str | None = None, role: str | None = None, is_active: bool | None = None) -> tuple[list[models.User], int]:
-    stmt: Select[tuple[models.User]] = select(models.User)
+    stmt: Select[tuple[models.User]] = select(models.User).options(
+        joinedload(models.User.user_profile),
+        joinedload(models.User.user_security_log),
+    )
     count_stmt = select(func.count()).select_from(models.User)
     if search:
         like = f'%{search}%'
+        stmt = stmt.join(models.UserProfile, models.UserProfile.user_id == models.User.id, isouter=True)
+        count_stmt = count_stmt.join(models.UserProfile, models.UserProfile.user_id == models.User.id, isouter=True)
         stmt = stmt.where(
             models.User.username.like(like)
-            | models.User.full_name.like(like)
-            | models.User.email.like(like)
-            | models.User.phone.like(like)
+            | models.UserProfile.full_name.like(like)
+            | models.UserProfile.email.like(like)
         )
         count_stmt = count_stmt.where(
             models.User.username.like(like)
-            | models.User.full_name.like(like)
-            | models.User.email.like(like)
-            | models.User.phone.like(like)
+            | models.UserProfile.full_name.like(like)
+            | models.UserProfile.email.like(like)
         )
     if role:
         stmt = stmt.where(models.User.role == role)
@@ -56,16 +80,28 @@ def list_users(db: Session, page: int = 1, limit: int = 20, search: str | None =
 
 
 def create_user(db: Session, *, username: str, email: str | None, password_hash: str, full_name: str, role: models.UserRole, phone: str | None = None, avatar_url: str | None = None) -> models.User:
+    from . import helpers
+    
     user = models.User(
         username=username,
-        email=email,
-        phone=phone,
-        avatar_url=avatar_url,
         password_hash=password_hash,
-        full_name=full_name,
         role=role,
     )
     db.add(user)
+    db.flush()  # Get user ID
+    
+    # Create user profile
+    helpers.create_user_profile(
+        db, user.id,
+        full_name=full_name,
+        email=email,
+        phone=phone,
+        avatar_url=avatar_url
+    )
+    
+    # Create user security log
+    helpers.create_user_security_log(db, user.id)
+    
     db.commit()
     db.refresh(user)
     return user
@@ -111,19 +147,47 @@ def create_prediction(db: Session, *, user_id: int, task_id: str, filename: str,
 
 
 def get_prediction_by_task_id(db: Session, task_id: str) -> models.Prediction | None:
-    return db.scalar(select(models.Prediction).where(models.Prediction.task_id == task_id))
+    return db.scalar(
+        select(models.Prediction)
+        .where(models.Prediction.task_id == task_id)
+        .options(
+            joinedload(models.Prediction.patient_info),
+            joinedload(models.Prediction.results),
+            joinedload(models.Prediction.analysis),
+            joinedload(models.Prediction.doctor_review),
+            joinedload(models.Prediction.processing_log),
+        )
+    )
 
 
 def get_prediction_by_id(db: Session, prediction_id: int) -> models.Prediction | None:
-    return db.get(models.Prediction, prediction_id)
+    return db.scalar(
+        select(models.Prediction)
+        .where(models.Prediction.id == prediction_id)
+        .options(
+            joinedload(models.Prediction.patient_info),
+            joinedload(models.Prediction.results),
+            joinedload(models.Prediction.analysis),
+            joinedload(models.Prediction.doctor_review),
+            joinedload(models.Prediction.processing_log),
+        )
+    )
 
 
 def list_predictions_for_user(db: Session, *, user_id: int, page: int, limit: int, prediction: str | None = None, status: str | None = None, date_from: datetime | None = None, date_to: datetime | None = None) -> tuple[list[models.Prediction], int]:
-    stmt = select(models.Prediction).where(models.Prediction.user_id == user_id)
+    stmt = select(models.Prediction).where(models.Prediction.user_id == user_id).options(
+        joinedload(models.Prediction.patient_info),
+        joinedload(models.Prediction.results),
+        joinedload(models.Prediction.analysis),
+        joinedload(models.Prediction.doctor_review),
+        joinedload(models.Prediction.processing_log),
+    )
     count_stmt = select(func.count()).select_from(models.Prediction).where(models.Prediction.user_id == user_id)
     if prediction:
-        stmt = stmt.where(models.Prediction.prediction == prediction)
-        count_stmt = count_stmt.where(models.Prediction.prediction == prediction)
+        stmt = stmt.join(models.PredictionResults, models.PredictionResults.prediction_id == models.Prediction.id)
+        count_stmt = count_stmt.join(models.PredictionResults, models.PredictionResults.prediction_id == models.Prediction.id)
+        stmt = stmt.where(models.PredictionResults.prediction == prediction)
+        count_stmt = count_stmt.where(models.PredictionResults.prediction == prediction)
     if status:
         stmt = stmt.where(models.Prediction.status == status)
         count_stmt = count_stmt.where(models.Prediction.status == status)
@@ -139,7 +203,13 @@ def list_predictions_for_user(db: Session, *, user_id: int, page: int, limit: in
 
 
 def list_predictions_admin(db: Session, *, page: int, limit: int, user_id: int | None = None, date_from: datetime | None = None, date_to: datetime | None = None) -> tuple[list[models.Prediction], int]:
-    stmt = select(models.Prediction)
+    stmt = select(models.Prediction).options(
+        joinedload(models.Prediction.patient_info),
+        joinedload(models.Prediction.results),
+        joinedload(models.Prediction.analysis),
+        joinedload(models.Prediction.doctor_review),
+        joinedload(models.Prediction.processing_log),
+    )
     count_stmt = select(func.count()).select_from(models.Prediction)
     if user_id:
         stmt = stmt.where(models.Prediction.user_id == user_id)

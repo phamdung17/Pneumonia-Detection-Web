@@ -5,14 +5,15 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from backend.api.predict import serialize_prediction
-from backend.auth.dependencies import get_current_user, require_roles
-from backend.auth.password import hash_password
-from backend.database.connection import get_db
-from backend.database.crud import create_audit_log, create_user, get_user_by_email, list_audit_logs, list_predictions_admin, list_users
-from backend.database.models import Prediction, ProcessingStatus, User, UserRole
-from backend.schemas import AdminDashboardSummary, MessageResponse, PaginatedAuditLogs, PaginatedPredictions, PaginatedUsers, UserCreate, UserRead, UserUpdate
-from backend.utils.errors import NotFoundAppError, ValidationAppError
+from ..api.predict import serialize_prediction
+from ..auth.dependencies import get_current_user, require_roles
+from ..auth.password import hash_password
+from ..database.connection import get_db
+from ..database.crud import create_audit_log, create_user, get_user_by_email, list_audit_logs, list_predictions_admin, list_users
+from ..database.helpers import get_user_full, update_user_security_log
+from ..database.models import Prediction, ProcessingStatus, User, UserRole
+from ..schemas import AdminDashboardSummary, MessageResponse, PaginatedAuditLogs, PaginatedPredictions, PaginatedUsers, UserCreate, UserRead, UserUpdate
+from ..utils.errors import NotFoundAppError, ValidationAppError
 
 
 router = APIRouter(prefix='/api/admin', tags=['admin'])
@@ -53,7 +54,7 @@ def get_users(
 
 @router.get('/users/{user_id}', response_model=UserRead)
 def get_user_detail(user_id: int, _: User = Depends(require_roles(UserRole.admin)), db: Session = Depends(get_db)) -> UserRead:
-    user = db.get(User, user_id)
+    user = get_user_full(db, user_id)
     if not user:
         raise NotFoundAppError('User not found')
     return UserRead.model_validate(user)
@@ -79,7 +80,7 @@ def add_user(payload: UserCreate, current_user: User = Depends(require_roles(Use
 
 @router.put('/users/{user_id}', response_model=UserRead)
 def update_user(user_id: int, payload: UserUpdate, current_user: User = Depends(require_roles(UserRole.admin)), db: Session = Depends(get_db)) -> UserRead:
-    user = db.get(User, user_id)
+    user = get_user_full(db, user_id)
     if not user:
         raise NotFoundAppError('User not found')
     if user.id == current_user.id and payload.is_active is False:
@@ -98,12 +99,10 @@ def update_user(user_id: int, payload: UserUpdate, current_user: User = Depends(
 
 @router.put('/users/{user_id}/unlock', response_model=MessageResponse)
 def unlock_user(user_id: int, current_user: User = Depends(require_roles(UserRole.admin)), db: Session = Depends(get_db)) -> MessageResponse:
-    user = db.get(User, user_id)
+    user = get_user_full(db, user_id)
     if not user:
         raise NotFoundAppError('User not found')
-    user.failed_login_count = 0
-    user.locked_until = None
-    db.add(user)
+    update_user_security_log(db, user.id, failed_login_count=0, locked_until=None)
     db.commit()
     create_audit_log(db, user_id=current_user.id, action='admin_unlock_user', target_type='user', target_id=str(user.id))
     return MessageResponse(message='User unlocked')
@@ -111,7 +110,7 @@ def unlock_user(user_id: int, current_user: User = Depends(require_roles(UserRol
 
 @router.put('/users/{user_id}/lock', response_model=MessageResponse)
 def lock_user(user_id: int, current_user: User = Depends(require_roles(UserRole.admin)), db: Session = Depends(get_db)) -> MessageResponse:
-    user = db.get(User, user_id)
+    user = get_user_full(db, user_id)
     if not user:
         raise NotFoundAppError('User not found')
     if user.id == current_user.id:
@@ -125,7 +124,7 @@ def lock_user(user_id: int, current_user: User = Depends(require_roles(UserRole.
 
 @router.delete('/users/{user_id}', response_model=MessageResponse)
 def deactivate_user_alias(user_id: int, current_user: User = Depends(require_roles(UserRole.admin)), db: Session = Depends(get_db)) -> MessageResponse:
-    user = db.get(User, user_id)
+    user = get_user_full(db, user_id)
     if not user:
         raise NotFoundAppError('User not found')
     if user.id == current_user.id:

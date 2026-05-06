@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from time import perf_counter
 
@@ -7,11 +8,19 @@ from sqlalchemy.orm import Session
 
 from backend.database.connection import SessionLocal
 from backend.database.crud import create_audit_log, get_prediction_by_id
-from backend.database.models import DiseaseType, PredictionLabel, ProcessingStatus
+from backend.database.helpers import (
+    create_prediction_results,
+    create_prediction_analysis,
+    create_prediction_processing_log,
+)
+from backend.database.models import DiseaseType, EnsembleStatus, PredictionLabel, ProcessingStatus
 from backend.models.pipeline import run_pipeline
-from backend.utils.logging import error_logger
+from backend.utils.logging import error_logger, performance_logger
 from backend.worker.task_state import task_state_store
 from backend.worker.websocket import manager
+
+_prediction_semaphore = asyncio.Semaphore(1)
+
 
 async def run_prediction_task(prediction_id: int, task_id: str) -> None:
     db: Session = SessionLocal()
@@ -49,7 +58,41 @@ async def run_prediction_task(prediction_id: int, task_id: str) -> None:
                 'predictionId': None,
             },
         )
-        pipeline_result = run_pipeline(task_id, prediction.file_path)
+        queue_wait_started = perf_counter()
+        if _prediction_semaphore.locked():
+            task_state_store.set(
+                task_id,
+                {
+                    'stage': 'queued',
+                    'status': 'queued',
+                    'data': {
+                        'message': 'Waiting for inference slot...',
+                        'progress': 5,
+                    },
+                    'predictionId': None,
+                },
+            )
+            await manager.broadcast(
+                task_id,
+                {
+                    'stage': 'queued',
+                    'status': 'queued',
+                    'data': {
+                        'message': 'Waiting for inference slot...',
+                        'progress': 5,
+                    },
+                    'predictionId': None,
+                },
+            )
+
+        async with _prediction_semaphore:
+            performance_logger.info(
+                'prediction_started task_id=%s prediction_id=%s queue_wait_ms=%s',
+                task_id,
+                prediction_id,
+                int((perf_counter() - queue_wait_started) * 1000),
+            )
+            pipeline_result = await asyncio.to_thread(run_pipeline, task_id, prediction.file_path)
         prediction_label = pipeline_result['prediction']
         confidence = float(pipeline_result['confidence'])
         disease_type_value = pipeline_result.get('disease_type')
@@ -122,27 +165,49 @@ async def run_prediction_task(prediction_id: int, task_id: str) -> None:
             },
         )
 
-        prediction.prediction = prediction_label
-        prediction.confidence = confidence
-        prediction.prob_dn = float(pipeline_result['prob_dn']) if pipeline_result.get('prob_dn') is not None else None
-        prediction.prob_eff = float(pipeline_result['prob_eff']) if pipeline_result.get('prob_eff') is not None else None
-        prediction.disease_type = disease_type
-        prediction.bacterial_prob = type_probs['BACTERIAL']
-        prediction.viral_prob = type_probs['VIRAL']
-        prediction.covid_prob = type_probs['COVID']
-        prediction.lesion_pct = float(pipeline_result['lesion_pct']) if pipeline_result.get('lesion_pct') is not None else None
-        prediction.bbox_x1 = int(pipeline_result['bbox_x1']) if pipeline_result.get('bbox_x1') is not None else None
-        prediction.bbox_y1 = int(pipeline_result['bbox_y1']) if pipeline_result.get('bbox_y1') is not None else None
-        prediction.bbox_x2 = int(pipeline_result['bbox_x2']) if pipeline_result.get('bbox_x2') is not None else None
-        prediction.bbox_y2 = int(pipeline_result['bbox_y2']) if pipeline_result.get('bbox_y2') is not None else None
-        prediction.dice_score = float(pipeline_result['dice_score']) if pipeline_result.get('dice_score') is not None else None
-        prediction.heatmap_dn_path = str(pipeline_result['heatmap_dn_path']) if pipeline_result.get('heatmap_dn_path') else None
-        prediction.heatmap_eff_path = str(pipeline_result['heatmap_eff_path']) if pipeline_result.get('heatmap_eff_path') else None
-        prediction.lung_mask_path = str(pipeline_result['lung_mask_path']) if pipeline_result.get('lung_mask_path') else None
         prediction.status = ProcessingStatus.done
-        prediction.completed_at = datetime.utcnow()
-        prediction.processing_time_ms = int((perf_counter() - started_at) * 1000)
-        prediction.error_message = None
+        db.add(prediction)
+        db.flush()
+
+        # Save results to prediction_results table
+        create_prediction_results(
+            db,
+            prediction.id,
+            prediction=prediction_label,
+            ensemble_status=EnsembleStatus.confirmed,
+            confidence=confidence,
+            prob_dn=float(pipeline_result['prob_dn']) if pipeline_result.get('prob_dn') is not None else None,
+            prob_eff=float(pipeline_result['prob_eff']) if pipeline_result.get('prob_eff') is not None else None,
+            disease_type=disease_type,
+            bacterial_prob=type_probs['BACTERIAL'],
+            viral_prob=type_probs['VIRAL'],
+            covid_prob=type_probs['COVID'],
+        )
+
+        # Save analysis to prediction_analysis table
+        create_prediction_analysis(
+            db,
+            prediction.id,
+            lesion_pct=float(pipeline_result['lesion_pct']) if pipeline_result.get('lesion_pct') is not None else None,
+            bbox_x1=int(pipeline_result['bbox_x1']) if pipeline_result.get('bbox_x1') is not None else None,
+            bbox_y1=int(pipeline_result['bbox_y1']) if pipeline_result.get('bbox_y1') is not None else None,
+            bbox_x2=int(pipeline_result['bbox_x2']) if pipeline_result.get('bbox_x2') is not None else None,
+            bbox_y2=int(pipeline_result['bbox_y2']) if pipeline_result.get('bbox_y2') is not None else None,
+            dice_score=float(pipeline_result['dice_score']) if pipeline_result.get('dice_score') is not None else None,
+            heatmap_dn_path=str(pipeline_result['heatmap_dn_path']) if pipeline_result.get('heatmap_dn_path') else None,
+            heatmap_eff_path=str(pipeline_result['heatmap_eff_path']) if pipeline_result.get('heatmap_eff_path') else None,
+            lung_mask_path=str(pipeline_result['lung_mask_path']) if pipeline_result.get('lung_mask_path') else None,
+        )
+
+        # Save processing log
+        processing_time_ms = int((perf_counter() - started_at) * 1000)
+        create_prediction_processing_log(
+            db,
+            prediction.id,
+            error_message=None,
+            processing_time_ms=processing_time_ms,
+            completed_at=datetime.utcnow(),
+        )
 
         log = create_audit_log(
             db,
@@ -152,16 +217,21 @@ async def run_prediction_task(prediction_id: int, task_id: str) -> None:
             target_id=str(prediction.id),
             detail={
                 'task_id': prediction.task_id,
-                'prediction': prediction.prediction.value,
-                'confidence': prediction.confidence,
-                'type': prediction.disease_type.value if prediction.disease_type else None,
+                'prediction': prediction_label.value,
+                'confidence': confidence,
+                'type': disease_type.value if disease_type else None,
             },
             commit=False,
         )
         db.add(log)
 
-        db.add(prediction)
         db.commit()
+        performance_logger.info(
+            'prediction_finished task_id=%s prediction_id=%s total_ms=%s',
+            task_id,
+            prediction_id,
+            int((perf_counter() - started_at) * 1000),
+        )
 
         task_state_store.set(
             task_id,

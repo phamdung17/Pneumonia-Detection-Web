@@ -3,7 +3,19 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from backend.config import get_settings
+try:
+    # Try relative import first (when imported as package)
+    from ..config import get_settings
+except ImportError:
+    try:
+        # Then try absolute import (when run directly)
+        from config import get_settings
+    except ImportError:
+        # Last resort: local import
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from config import get_settings
 
 
 settings = get_settings()

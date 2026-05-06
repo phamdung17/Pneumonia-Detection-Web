@@ -22,6 +22,8 @@ interface LoginCredentials {
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
+  isInitializing: boolean;
+  hasInitialized: boolean;
   login: (credentials: LoginCredentials) => Promise<User>;
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
@@ -31,12 +33,14 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
+  isInitializing: true,
+  hasInitialized: false,
   login: async (credentials) => {
     const response = await api.post("/api/auth/login", credentials);
     const { access_token, refresh_token, user } = response.data;
     localStorage.setItem("access_token", access_token);
     localStorage.setItem("refresh_token", refresh_token);
-    set({ user, isAuthenticated: true });
+    set({ user, isAuthenticated: true, isInitializing: false, hasInitialized: true });
     return user;
   },
   logout: async () => {
@@ -48,22 +52,36 @@ export const useAuthStore = create<AuthState>((set) => ({
     } finally {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
-      set({ user: null, isAuthenticated: false });
+      set({ user: null, isAuthenticated: false, isInitializing: false, hasInitialized: true });
     }
   },
   loadUser: async () => {
     const token = localStorage.getItem("access_token");
-    if (!token) return;
+    const refreshToken = localStorage.getItem("refresh_token");
+    if (!token && !refreshToken) {
+      set({ user: null, isAuthenticated: false, isInitializing: false, hasInitialized: true });
+      return;
+    }
+
+    set({ isInitializing: true });
     try {
+      if (!token && refreshToken) {
+        const refreshResponse = await api.post("/api/auth/refresh", { refresh_token: refreshToken });
+        const { access_token, refresh_token } = refreshResponse.data;
+        localStorage.setItem("access_token", access_token);
+        if (refresh_token) {
+          localStorage.setItem("refresh_token", refresh_token);
+        }
+      }
       const response = await api.get("/api/auth/me");
-      set({ user: response.data, isAuthenticated: true });
+      set({ user: response.data, isAuthenticated: true, isInitializing: false, hasInitialized: true });
     } catch {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
-      set({ user: null, isAuthenticated: false });
+      set({ user: null, isAuthenticated: false, isInitializing: false, hasInitialized: true });
     }
   },
   setUser: (user) => {
-    set({ user, isAuthenticated: Boolean(user) });
+    set({ user, isAuthenticated: Boolean(user), isInitializing: false, hasInitialized: true });
   },
 }));

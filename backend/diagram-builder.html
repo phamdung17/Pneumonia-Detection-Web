@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Use Case Diagram Builder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 320px;
+            background: white;
+            border-right: 2px solid #e0e0e0;
+            overflow-y: auto;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .sidebar h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+        }
+
+        .tool-group {
+            margin-bottom: 25px;
+        }
+
+        .tool-group h3 {
+            color: #333;
+            font-size: 0.95em;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        .tool-btn {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 8px;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            background: white;
+            color: #667eea;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.95em;
+        }
+
+        .tool-btn:hover {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .tool-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 0.9em;
+        }
+
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.95em;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ee5a52;
+        }
+
+        .canvas-area {
+            flex: 1;
+            background: white;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .toolbar {
+            background: white;
+            border-bottom: 2px solid #e0e0e0;
+            padding: 15px 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .toolbar-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9em;
+            color: #333;
+        }
+
+        #canvas {
+            flex: 1;
+            cursor: default;
+            background: linear-gradient(45deg, #f9f9f9 25%, transparent 25%, transparent 75%, #f9f9f9 75%, #f9f9f9),
+                        linear-gradient(45deg, #f9f9f9 25%, transparent 25%, transparent 75%, #f9f9f9 75%, #f9f9f9);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+            background-color: white;
+        }
+
+        .properties-panel {
+            background: #f9f9f9;
+            border-top: 2px solid #e0e0e0;
+            padding: 15px 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .properties-panel.active {
+            display: block;
+        }
+
+        .property-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+            color: #333;
+            font-size: 0.9em;
+        }
+
+        .property-item strong {
+            color: #667eea;
+            margin-right: 8px;
+        }
+
+        .legend {
+            background: #f0f4ff;
+            border: 1px solid #667eea;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 4px 0;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #333;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                max-height: 200px;
+                border-right: none;
+                border-bottom: 2px solid #e0e0e0;
+            }
+
+            .canvas-area {
+                height: 100%;
+            }
+        }
+
+        /* SVG styles */
+        .actor-circle {
+            fill: #90EE90;
+            stroke: #228B22;
+            stroke-width: 2;
+        }
+
+        .usecase-ellipse {
+            fill: #87CEEB;
+            stroke: #4682B4;
+            stroke-width: 2;
+        }
+
+        .system-rect {
+            fill: none;
+            stroke: #333;
+            stroke-width: 2;
+        }
+
+        .relationship-line {
+            stroke: #333;
+            stroke-width: 2;
+            fill: none;
+            marker-end: url(#arrowhead);
+        }
+
+        .element-text {
+            font-size: 14px;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            cursor: pointer;
+            pointer-events: all;
+        }
+
+        .element-selected {
+            stroke: #ff6b6b;
+            stroke-width: 3;
+        }
+
+        .status-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background: white;
+            border-left: 4px solid #667eea;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: none;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .status-message.show {
+            display: block;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(100px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .help-text {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 12px;
+            border-radius: 4px;
+            color: #1565c0;
+            font-size: 0.85em;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h2>🎨 Diagram Builder</h2>
+
+        <div class="help-text">
+            💡 Vẽ sơ đồ UML Use Case từng bước một
+        </div>
+
+        <!-- Legend -->
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #90EE90;"></div>
+                <span>Actor</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #87CEEB;"></div>
+                <span>Use Case</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: white; border-color: #333;"></div>
+                <span>System</span>
+            </div>
+        </div>
+
+        <!-- Add Actor -->
+        <div class="tool-group">
+            <h3>👥 Thêm Actor</h3>
+            <div class="input-group">
+                <label>Tên Actor:</label>
+                <input type="text" id="actorName" placeholder="ví dụ: User, Doctor">
+            </div>
+            <button class="btn btn-primary" onclick="addActor()" style="width: 100%;">➕ Thêm Actor</button>
+        </div>
+
+        <!-- Add Use Case -->
+        <div class="tool-group">
+            <h3>⭕ Thêm Use Case</h3>
+            <div class="input-group">
+                <label>Tên Use Case:</label>
+                <input type="text" id="usecaseName" placeholder="ví dụ: Upload Image">
+            </div>
+            <button class="btn btn-primary" onclick="addUseCase()" style="width: 100%;">➕ Thêm Use Case</button>
+        </div>
+
+        <!-- Add System -->
+        <div class="tool-group">
+            <h3>📦 Hệ Thống</h3>
+            <div class="input-group">
+                <label>Tên Hệ Thống:</label>
+                <input type="text" id="systemName" placeholder="ví dụ: Pneumonia Detection">
+            </div>
+            <button class="btn btn-primary" onclick="addSystem()" style="width: 100%;">📦 Thêm Hệ Thống</button>
+        </div>
+
+        <!-- Add Relationship -->
+        <div class="tool-group">
+            <h3>🔗 Mối Quan Hệ</h3>
+            <div class="input-group">
+                <label>Từ Element:</label>
+                <input type="text" id="fromElement" placeholder="ID hoặc tên">
+            </div>
+            <div class="input-group">
+                <label>Đến Element:</label>
+                <input type="text" id="toElement" placeholder="ID hoặc tên">
+            </div>
+            <div class="input-group">
+                <label>Loại Mối Quan Hệ:</label>
+                <select id="relationshipType">
+                    <option value="uses">Uses</option>
+                    <option value="includes">Includes</option>
+                    <option value="extends">Extends</option>
+                    <option value="generalizes">Generalizes</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="addRelationship()" style="width: 100%;">🔗 Thêm Mối Quan Hệ</button>
+        </div>
+
+        <!-- Controls -->
+        <div class="tool-group">
+            <h3>⚙️ Điều Khiển</h3>
+            <button class="btn btn-primary" onclick="clearCanvas()" style="width: 100%; margin-bottom: 8px;">🗑️ Xóa Tất Cả</button>
+            <button class="btn btn-primary" onclick="exportSVG()" style="width: 100%; margin-bottom: 8px;">⬇️ Tải SVG</button>
+            <button class="btn btn-primary" onclick="zoomIn()" style="width: 100%; margin-bottom: 8px;">🔍+ Phóng To</button>
+            <button class="btn btn-primary" onclick="zoomOut()" style="width: 100%;">🔍- Thu Nhỏ</button>
+        </div>
+
+        <!-- Elements List -->
+        <div class="tool-group">
+            <h3>📋 Danh Sách Elements</h3>
+            <div id="elementsList" style="font-size: 0.9em; max-height: 300px; overflow-y: auto;">
+                <p style="color: #999; text-align: center; padding: 20px 0;">Chưa có elements</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas Area -->
+    <div class="canvas-area">
+        <div class="toolbar">
+            <div class="toolbar-item">
+                📐 Tọa độ: <span id="coordsDisplay">-</span>
+            </div>
+            <div class="toolbar-item" style="margin-left: auto;">
+                <span id="elementsCount">Elements: 0</span>
+            </div>
+        </div>
+
+        <svg id="canvas" width="100%" height="100%">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#333"/>
+                </marker>
+            </defs>
+        </svg>
+
+        <div class="properties-panel" id="propertiesPanel">
+            <div id="propertiesContent"></div>
+        </div>
+    </div>
+
+    <div class="status-message" id="statusMessage"></div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let elements = [];
+        let relationships = [];
+        let selectedElement = null;
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let zoom = 1;
+        
+        // Get canvas position
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left) / zoom,
+                y: (e.clientY - rect.top) / zoom
+            };
+        }
+
+        // Show status message
+        function showStatus(message, duration = 3000) {
+            const msg = document.getElementById('statusMessage');
+            msg.textContent = message;
+            msg.classList.add('show');
+            setTimeout(() => msg.classList.remove('show'), duration);
+        }
+
+        // Add Actor
+        function addActor() {
+            const name = document.getElementById('actorName').value.trim();
+            if (!name) {
+                showStatus('❌ Vui lòng nhập tên Actor');
+                return;
+            }
+
+            const actor = {
+                id: 'actor_' + Date.now(),
+                type: 'actor',
+                name: name,
+                x: 100,
+                y: 100 + elements.length * 100
+            };
+
+            elements.push(actor);
+            document.getElementById('actorName').value = '';
+            updateDisplay();
+            showStatus(`✅ Đã thêm Actor: ${name}`);
+        }
+
+        // Add Use Case
+        function addUseCase() {
+            const name = document.getElementById('usecaseName').value.trim();
+            if (!name) {
+                showStatus('❌ Vui lòng nhập tên Use Case');
+                return;
+            }
+
+            const usecase = {
+                id: 'usecase_' + Date.now(),
+                type: 'usecase',
+                name: name,
+                x: 400,
+                y: 100 + elements.filter(e => e.type === 'usecase').length * 80
+            };
+
+            elements.push(usecase);
+            document.getElementById('usecaseName').value = '';
+            updateDisplay();
+            showStatus(`✅ Đã thêm Use Case: ${name}`);
+        }
+
+        // Add System
+        function addSystem() {
+            const name = document.getElementById('systemName').value.trim();
+            if (!name) {
+                showStatus('❌ Vui lòng nhập tên Hệ Thống');
+                return;
+            }
+
+            const system = {
+                id: 'system_' + Date.now(),
+                type: 'system',
+                name: name,
+                x: 250,
+                y: 250,
+                width: 400,
+                height: 300
+            };
+
+            elements.push(system);
+            document.getElementById('systemName').value = '';
+            updateDisplay();
+            showStatus(`✅ Đã thêm Hệ Thống: ${name}`);
+        }
+
+        // Add Relationship
+        function addRelationship() {
+            const from = document.getElementById('fromElement').value.trim();
+            const to = document.getElementById('toElement').value.trim();
+            const type = document.getElementById('relationshipType').value;
+
+            if (!from || !to) {
+                showStatus('❌ Vui lòng nhập tên elements');
+                return;
+            }
+
+            const rel = {
+                id: 'rel_' + Date.now(),
+                from: from,
+                to: to,
+                type: type
+            };
+
+            relationships.push(rel);
+            document.getElementById('fromElement').value = '';
+            document.getElementById('toElement').value = '';
+            updateDisplay();
+            showStatus(`✅ Đã thêm mối quan hệ: ${from} → ${to} (${type})`);
+        }
+
+        // Find element by name or id
+        function findElement(nameOrId) {
+            return elements.find(e => e.name === nameOrId || e.id === nameOrId);
+        }
+
+        // Update display
+        function updateDisplay() {
+            // Clear canvas
+            canvas.innerHTML = `
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                        <polygon points="0 0, 10 3, 0 6" fill="#333"/>
+                    </marker>
+                </defs>
+            `;
+
+            // Draw systems first
+            elements.forEach(el => {
+                if (el.type === 'system') {
+                    drawSystem(el);
+                }
+            });
+
+            // Draw relationships
+            relationships.forEach(rel => {
+                drawRelationship(rel);
+            });
+
+            // Draw actors and use cases
+            elements.forEach(el => {
+                if (el.type === 'actor') {
+                    drawActor(el);
+                } else if (el.type === 'usecase') {
+                    drawUseCase(el);
+                }
+            });
+
+            updateElementsList();
+            updateElementsCount();
+        }
+
+        // Draw System (Rectangle)
+        function drawSystem(system) {
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', system.x);
+            rect.setAttribute('y', system.y);
+            rect.setAttribute('width', system.width);
+            rect.setAttribute('height', system.height);
+            rect.setAttribute('class', 'system-rect');
+            rect.setAttribute('data-id', system.id);
+            canvas.appendChild(rect);
+
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', system.x + 10);
+            text.setAttribute('y', system.y + 20);
+            text.setAttribute('class', 'element-text');
+            text.setAttribute('font-weight', 'bold');
+            text.textContent = system.name;
+            canvas.appendChild(text);
+        }
+
+        // Draw Actor (Circle)
+        function drawActor(actor) {
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', actor.x);
+            circle.setAttribute('cy', actor.y);
+            circle.setAttribute('r', 30);
+            circle.setAttribute('class', 'actor-circle');
+            circle.setAttribute('data-id', actor.id);
+            circle.addEventListener('click', () => selectElement(actor));
+            circle.addEventListener('mousedown', () => startDrag(actor, event));
+            canvas.appendChild(circle);
+
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', actor.x);
+            text.setAttribute('y', actor.y + 50);
+            text.setAttribute('class', 'element-text');
+            text.textContent = actor.name;
+            text.addEventListener('click', () => selectElement(actor));
+            canvas.appendChild(text);
+        }
+
+        // Draw Use Case (Ellipse)
+        function drawUseCase(usecase) {
+            const ellipse = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+            ellipse.setAttribute('cx', usecase.x);
+            ellipse.setAttribute('cy', usecase.y);
+            ellipse.setAttribute('rx', 80);
+            ellipse.setAttribute('ry', 40);
+            ellipse.setAttribute('class', 'usecase-ellipse');
+            ellipse.setAttribute('data-id', usecase.id);
+            ellipse.addEventListener('click', () => selectElement(usecase));
+            ellipse.addEventListener('mousedown', () => startDrag(usecase, event));
+            canvas.appendChild(ellipse);
+
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', usecase.x);
+            text.setAttribute('y', usecase.y);
+            text.setAttribute('class', 'element-text');
+            text.textContent = usecase.name;
+            text.addEventListener('click', () => selectElement(usecase));
+            canvas.appendChild(text);
+        }
+
+        // Draw Relationship
+        function drawRelationship(rel) {
+            const from = findElement(rel.from);
+            const to = findElement(rel.to);
+
+            if (!from || !to) return;
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', from.x);
+            line.setAttribute('y1', from.y);
+            line.setAttribute('x2', to.x);
+            line.setAttribute('y2', to.y);
+            line.setAttribute('class', 'relationship-line');
+            line.setAttribute('stroke-dasharray', rel.type === 'includes' ? '5,5' : '');
+            canvas.appendChild(line);
+
+            // Add label
+            const midX = (from.x + to.x) / 2;
+            const midY = (from.y + to.y) / 2;
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', midX);
+            text.setAttribute('y', midY - 10);
+            text.setAttribute('class', 'element-text');
+            text.setAttribute('font-size', '12');
+            text.setAttribute('fill', '#666');
+            text.textContent = rel.type;
+            canvas.appendChild(text);
+        }
+
+        // Select Element
+        function selectElement(element) {
+            selectedElement = element;
+            showProperties(element);
+            updateDisplay();
+        }
+
+        // Start Drag
+        function startDrag(element, event) {
+            isDragging = true;
+            dragStart = getCanvasCoords(event);
+            document.addEventListener('mousemove', (e) => drag(element, e));
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+                document.removeEventListener('mousemove', drag);
+            });
+        }
+
+        // Drag
+        function drag(element, event) {
+            if (!isDragging) return;
+            const current = getCanvasCoords(event);
+            element.x += current.x - dragStart.x;
+            element.y += current.y - dragStart.y;
+            dragStart = current;
+            updateDisplay();
+        }
+
+        // Show Properties
+        function showProperties(element) {
+            const panel = document.getElementById('propertiesPanel');
+            const content = document.getElementById('propertiesContent');
+            content.innerHTML = `
+                <div class="property-item"><strong>ID:</strong> ${element.id}</div>
+                <div class="property-item"><strong>Type:</strong> ${element.type}</div>
+                <div class="property-item"><strong>Name:</strong> ${element.name}</div>
+                <div class="property-item"><strong>Position:</strong> (${Math.round(element.x)}, ${Math.round(element.y)})</div>
+                <button class="btn btn-danger" onclick="deleteElement('${element.id}')" style="width: 100%; margin-top: 10px;">🗑️ Xóa</button>
+            `;
+            panel.classList.add('active');
+        }
+
+        // Delete Element
+        function deleteElement(id) {
+            elements = elements.filter(e => e.id !== id);
+            relationships = relationships.filter(r => {
+                const from = findElement(r.from);
+                const to = findElement(r.to);
+                return from && to;
+            });
+            selectedElement = null;
+            document.getElementById('propertiesPanel').classList.remove('active');
+            updateDisplay();
+            showStatus('✅ Đã xóa element');
+        }
+
+        // Update Elements List
+        function updateElementsList() {
+            const list = document.getElementById('elementsList');
+            if (elements.length === 0) {
+                list.innerHTML = '<p style="color: #999; text-align: center; padding: 20px 0;">Chưa có elements</p>';
+                return;
+            }
+
+            list.innerHTML = elements.map(e => `
+                <div style="padding: 8px; margin-bottom: 8px; background: #f5f5f5; border-radius: 4px; cursor: pointer;" onclick="selectElement(elements.find(x => x.id === '${e.id}'))">
+                    <strong style="color: #667eea;">${e.type}</strong><br>
+                    ${e.name}
+                </div>
+            `).join('');
+        }
+
+        // Update Elements Count
+        function updateElementsCount() {
+            document.getElementById('elementsCount').textContent = `Elements: ${elements.length}`;
+        }
+
+        // Track mouse coordinates
+        canvas.addEventListener('mousemove', (e) => {
+            const coords = getCanvasCoords(e);
+            document.getElementById('coordsDisplay').textContent = `(${Math.round(coords.x)}, ${Math.round(coords.y)})`;
+        });
+
+        // Clear Canvas
+        function clearCanvas() {
+            if (confirm('Bạn chắc chắn muốn xóa tất cả?')) {
+                elements = [];
+                relationships = [];
+                selectedElement = null;
+                document.getElementById('propertiesPanel').classList.remove('active');
+                updateDisplay();
+                showStatus('✅ Đã xóa tất cả elements');
+            }
+        }
+
+        // Export SVG
+        function exportSVG() {
+            const svg = document.getElementById('canvas');
+            const serializer = new XMLSerializer();
+            const svgString = serializer.serializeToString(svg);
+            
+            const blob = new Blob([svgString], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'use-case-diagram.svg';
+            link.click();
+            showStatus('✅ Đã tải SVG');
+        }
+
+        // Zoom functions
+        function zoomIn() {
+            zoom = Math.min(zoom + 0.2, 3);
+            canvas.style.transform = `scale(${zoom})`;
+        }
+
+        function zoomOut() {
+            zoom = Math.max(zoom - 0.2, 0.5);
+            canvas.style.transform = `scale(${zoom})`;
+        }
+
+        // Initialize
+        updateDisplay();
+    </script>
+</body>
+</html>

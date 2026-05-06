@@ -12,7 +12,7 @@ from ..config import get_settings
 from ..database.connection import get_db
 from ..database.crud import create_prediction, get_prediction_by_id, get_prediction_by_task_id
 from ..database.models import DiseaseType, ProcessingStatus, User
-from ..database.helpers import get_prediction_full, create_prediction_doctor_review, create_prediction_patient_info
+from ..database.helpers import get_prediction_full, get_prediction_results
 from ..models.pipeline import ensure_models_ready
 from ..schemas import ConfirmRequest, MessageResponse, NoteRequest, PatientInfoRequest, PredictionResult, PredictionTypeProbabilities, PredictionTypeResult
 from ..utils.errors import NotFoundAppError
@@ -166,8 +166,6 @@ def get_prediction(task_id: str, current_user: User = Depends(get_current_user),
     prediction = get_prediction_by_task_id(db, task_id)
     if not prediction or prediction.user_id != current_user.id:
         raise NotFoundAppError('Prediction not found')
-    # Load full prediction with all related data
-    prediction = get_prediction_full(db, prediction.id)
     if settings.enable_mock_predict:
         return build_prediction_envelope(prediction)
     return serialize_prediction(prediction)
@@ -178,7 +176,8 @@ def update_note(prediction_id: int, payload: NoteRequest, current_user: User = D
     prediction = get_prediction_by_id(db, prediction_id)
     if not prediction or prediction.user_id != current_user.id:
         raise NotFoundAppError('Prediction not found')
-    create_prediction_doctor_review(db, prediction.id, doctor_note=payload.note)
+    prediction.doctor_note = payload.note
+    db.add(prediction)
     db.commit()
     return MessageResponse(message='Note updated')
 
@@ -188,7 +187,8 @@ def confirm_prediction(prediction_id: int, payload: ConfirmRequest, current_user
     prediction = get_prediction_by_id(db, prediction_id)
     if not prediction or prediction.user_id != current_user.id:
         raise NotFoundAppError('Prediction not found')
-    create_prediction_doctor_review(db, prediction.id, doctor_confirmed=payload.confirmed)
+    prediction.doctor_confirmed = payload.confirmed
+    db.add(prediction)
     db.commit()
     return MessageResponse(message='Confirmation updated')
 
@@ -198,31 +198,35 @@ def update_patient_info(prediction_id: int, payload: PatientInfoRequest, current
     prediction = get_prediction_by_id(db, prediction_id)
     if not prediction or prediction.user_id != current_user.id:
         raise NotFoundAppError('Prediction not found')
-    create_prediction_patient_info(
-        db, prediction.id,
-        patient_name=payload.patient_name,
-        patient_age=payload.patient_age,
-        patient_gender=payload.patient_gender,
-        technician_name=payload.technician_name,
-        performed_at=payload.performed_at,
-    )
+    data = payload.model_dump(exclude_unset=True)
+    for field, value in data.items():
+        setattr(prediction, field, value)
+    db.add(prediction)
     db.commit()
     return MessageResponse(message='Patient info updated')
 
 
-@router.get('/{prediction_id}/pdf', response_class=Response)
-def get_prediction_pdf(prediction_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@router.get('/{prediction_id}/export')
+def export_prediction(prediction_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Response:
     prediction = get_prediction_by_id(db, prediction_id)
     if not prediction or prediction.user_id != current_user.id:
         raise NotFoundAppError('Prediction not found')
-    prediction = get_prediction_full(db, prediction.id)
     pdf_content = build_prediction_pdf(prediction)
-    headers = {'Content-Disposition': f'attachment; filename=prediction_{prediction.task_id}.pdf'}
+    headers = {'Content-Disposition': f'attachment; filename=XR-{prediction.id}.pdf'}
     return Response(content=pdf_content, media_type='application/pdf', headers=headers)
 
 
+@router.get('/{task_id}/asset/{filename}')
+def get_prediction_asset(task_id: str, filename: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> FileResponse:
+    prediction = get_prediction_by_task_id(db, task_id)
+    if not prediction or prediction.user_id != current_user.id:
+        raise NotFoundAppError('Prediction not found')
+    asset_path = resolve_asset_path(task_id, filename)
+    return FileResponse(path=asset_path)
+
+
 @router.websocket('/ws/{task_id}')
-async def websocket_prediction(websocket: WebSocket, task_id: str, current_user: User = Depends(get_current_user)):
+async def prediction_ws(websocket: WebSocket, task_id: str) -> None:
     await manager.connect(task_id, websocket)
     state = task_state_store.get(task_id)
     if state:
@@ -232,13 +236,3 @@ async def websocket_prediction(websocket: WebSocket, task_id: str, current_user:
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(task_id, websocket)
-
-
-@router.delete('/{prediction_id}')
-def delete_prediction(prediction_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MessageResponse:
-    prediction = get_prediction_by_id(db, prediction_id)
-    if not prediction or prediction.user_id != current_user.id:
-        raise NotFoundAppError('Prediction not found')
-    db.delete(prediction)
-    db.commit()
-    return MessageResponse(message='Prediction deleted')

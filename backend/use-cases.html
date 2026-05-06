@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📋 Use Case Diagrams - Pneumonia Detection System</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+            animation: fadeIn 0.6s ease-in;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .nav-tabs button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            background: white;
+            color: #667eea;
+        }
+        
+        .nav-tabs button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .nav-tabs button.active {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        
+        .content-container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            animation: slideIn 0.5s ease-out;
+            display: none;
+        }
+        
+        .content-container.active {
+            display: block;
+        }
+        
+        .content-container h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 15px;
+        }
+        
+        .content-container h3 {
+            color: #667eea;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+        
+        .info-box {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .info-box strong {
+            color: #667eea;
+        }
+        
+        .use-case-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 0.95em;
+        }
+        
+        .use-case-table th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        .use-case-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .use-case-table tr:hover {
+            background: #f9f9f9;
+        }
+        
+        .actor-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        
+        .actor-card h4 {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+        
+        .actor-card ul {
+            margin-left: 20px;
+            line-height: 1.8;
+        }
+        
+        .actor-card li {
+            margin: 5px 0;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .download-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .download-section h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+        
+        .download-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px;
+        }
+        
+        .download-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .nav-tabs {
+                flex-direction: column;
+            }
+            
+            .nav-tabs button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>📋 Use Case Diagrams</h1>
+            <p>Pneumonia Detection System - Hệ Thống Phát Hiện Viêm Phổi</p>
+        </div>
+        
+        <!-- Navigation -->
+        <div class="nav-tabs">
+            <button class="tab-btn active" onclick="showTab('use-cases')">
+                📌 Use Cases
+            </button>
+            <button class="tab-btn" onclick="showTab('actors')">
+                👥 Actors
+            </button>
+            <button class="tab-btn" onclick="showTab('prediction-flow')">
+                🔄 Prediction Flow
+            </button>
+            <button class="tab-btn" onclick="showTab('auth-flow')">
+                🔐 Auth Flow
+            </button>
+            <button class="tab-btn" onclick="showTab('summary')">
+                📊 Summary
+            </button>
+        </div>
+        
+        <!-- Use Cases Tab -->
+        <div id="use-cases" class="content-container active">
+            <h2>📌 Use Cases - Tổng Quát</h2>
+            
+            <div class="mermaid">
+graph TB
+    subgraph Actors["👥 Actors"]
+        User["👤 User<br/>(Technician/Client)"]
+        Doctor["👨‍⚕️ Doctor"]
+        Admin["👨‍💼 Admin"]
+        System["🖥️ System"]
+    end
+    
+    subgraph Auth["🔐 Authentication"]
+        UC1["Register"]
+        UC2["Login"]
+        UC3["Logout"]
+    end
+    
+    subgraph Predict["🔍 Prediction"]
+        UC5["Upload Image"]
+        UC6["Single Prediction"]
+        UC7["Batch Upload"]
+        UC8["View Progress"]
+        UC9["Download Result"]
+    end
+    
+    subgraph History["📋 History"]
+        UC10["View History"]
+        UC12["View Details"]
+        UC13["Doctor Review"]
+        UC14["Add Note"]
+    end
+    
+    subgraph Stats["📊 Statistics"]
+        UC16["View Dashboard"]
+        UC17["View Charts"]
+    end
+    
+    subgraph Admin["⚙️ Admin"]
+        UC19["Manage Users"]
+        UC20["Create User"]
+        UC23["View Audit Log"]
+    end
+    
+    User -->|uses| UC1
+    User -->|uses| UC2
+    User -->|uses| UC5
+    User -->|uses| UC6
+    User -->|uses| UC10
+    
+    Doctor -->|uses| UC2
+    Doctor -->|uses| UC12
+    Doctor -->|uses| UC13
+    Doctor -->|uses| UC14
+    
+    Admin -->|uses| UC2
+    Admin -->|uses| UC19
+    Admin -->|uses| UC20
+    Admin -->|uses| UC23
+    
+    System -->|triggers| UC6
+    System -->|executes| UC7
+    
+    style Actors fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    style Auth fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    style Predict fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    style History fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style Stats fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    style Admin fill:#f1f8e9,stroke:#33691e,stroke-width:2px
+            </div>
+            
+            <div class="info-box">
+                <strong>📌 Các Use Cases Chính:</strong><br>
+                • <strong>Authentication:</strong> Register, Login, Logout<br>
+                • <strong>Prediction:</strong> Upload, Single/Batch prediction, Progress tracking<br>
+                • <strong>History & Review:</strong> View history, Doctor review, Add notes<br>
+                • <strong>Statistics:</strong> Dashboard, Charts<br>
+                • <strong>Administration:</strong> Manage users, Audit logs
+            </div>
+        </div>
+        
+        <!-- Actors Tab -->
+        <div id="actors" class="content-container">
+            <h2>👥 Actors (Người Dùng)</h2>
+            
+            <div class="actor-card">
+                <h4>👤 User (Technician/Client)</h4>
+                <ul>
+                    <li>✅ Upload ảnh X-ray</li>
+                    <li>✅ Xem tiến độ xử lý (real-time)</li>
+                    <li>✅ Xem lịch sử dự đoán</li>
+                    <li>✅ Tải kết quả PDF</li>
+                    <li>✅ Xem thống kê</li>
+                    <li>❌ Không xét duyệt kết quả</li>
+                    <li>❌ Không quản lý người dùng</li>
+                </ul>
+            </div>
+            
+            <div class="actor-card">
+                <h4>👨‍⚕️ Doctor</h4>
+                <ul>
+                    <li>✅ Xem chi tiết dự đoán</li>
+                    <li>✅ Xét duyệt kết quả (confirm)</li>
+                    <li>✅ Thêm ghi chú y tế</li>
+                    <li>✅ Xem thống kê</li>
+                    <li>✅ Tải báo cáo</li>
+                    <li>❌ Không upload ảnh</li>
+                    <li>❌ Không quản lý người dùng</li>
+                </ul>
+            </div>
+            
+            <div class="actor-card">
+                <h4>👨‍💼 Admin</h4>
+                <ul>
+                    <li>✅ Quản lý người dùng (CRUD)</li>
+                    <li>✅ Xem nhật ký kiểm toán (Audit logs)</li>
+                    <li>✅ Xem thống kê hệ thống</li>
+                    <li>✅ Quản lý quyền hạn</li>
+                    <li>❌ Không upload ảnh</li>
+                    <li>❌ Không xét duyệt kết quả</li>
+                </ul>
+            </div>
+            
+            <div class="actor-card">
+                <h4>🖥️ System (AI/Server)</h4>
+                <ul>
+                    <li>✅ Xử lý công việc từ queue (Celery)</li>
+                    <li>✅ Chạy mô hình AI (4 models)</li>
+                    <li>✅ Tạo heatmaps (Grad-CAM)</li>
+                    <li>✅ Ensemble predictions</li>
+                    <li>✅ Gửi real-time notifications (WebSocket)</li>
+                    <li>✅ Tạo báo cáo PDF</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Prediction Flow Tab -->
+        <div id="prediction-flow" class="content-container">
+            <h2>🔄 Prediction Processing Flow</h2>
+            
+            <h3>Quy Trình Chi Tiết</h3>
+            <ol style="line-height: 2; margin-left: 20px;">
+                <li><strong>User</strong> chọn ảnh X-ray → Upload</li>
+                <li><strong>Frontend</strong> validate file (type, size)</li>
+                <li><strong>Frontend</strong> send to API (POST /api/predict/upload)</li>
+                <li><strong>API</strong> verify JWT token</li>
+                <li><strong>API</strong> save file to disk</li>
+                <li><strong>API</strong> create prediction record (status=queued)</li>
+                <li><strong>API</strong> enqueue Celery task</li>
+                <li><strong>API</strong> return task_id to frontend</li>
+                <li><strong>Frontend</strong> open WebSocket for real-time updates</li>
+                <li><strong>Celery Worker</strong> dequeue task từ Redis queue</li>
+                <li><strong>Worker</strong> load 4 AI models (UNet, DenseNet, EfficientNet, DenseNet_T2)</li>
+                <li><strong>Worker</strong> preprocess image (resize, normalize)</li>
+                <li><strong>Worker</strong> run inference trên 4 models</li>
+                <li><strong>Worker</strong> generate Grad-CAM heatmaps</li>
+                <li><strong>Worker</strong> extract bounding box</li>
+                <li><strong>Worker</strong> ensemble predictions (majority voting)</li>
+                <li><strong>Worker</strong> classify disease type (Bacterial/Viral/COVID)</li>
+                <li><strong>Worker</strong> update prediction record (results + files paths)</li>
+                <li><strong>Worker</strong> send WebSocket event (status=done)</li>
+                <li><strong>Frontend</strong> receive notification → Display results</li>
+                <li><strong>User</strong> view results (prediction, heatmaps, confidence)</li>
+                <li><strong>User</strong> can add note → Doctor review</li>
+                <li><strong>User</strong> can export PDF report</li>
+            </ol>
+            
+            <div class="info-box">
+                <strong>🎯 Key Points:</strong><br>
+                • Real-time WebSocket updates cho progress tracking<br>
+                • Celery + Redis cho async task processing<br>
+                • 4 models ensemble cho high accuracy<br>
+                • Grad-CAM heatmaps cho interpretability<br>
+                • PDF export cho doctor review
+            </div>
+        </div>
+        
+        <!-- Auth Flow Tab -->
+        <div id="auth-flow" class="content-container">
+            <h2>🔐 Authentication Flow</h2>
+            
+            <h3>Registration → Login → Token Refresh → Logout</h3>
+            
+            <div class="info-box" style="margin-top: 0;">
+                <strong>🔑 Token Management:</strong><br>
+                • <strong>Access Token:</strong> 8 hours expiry → Short lived<br>
+                • <strong>Refresh Token:</strong> 30 days expiry → Stored in DB<br>
+                • <strong>Password:</strong> Hashed with bcrypt<br>
+                • <strong>Rate Limiting:</strong> 10 requests/min cho login<br>
+                • <strong>Account Locking:</strong> Sau 5 lần đăng nhập thất bại (30 min)
+            </div>
+            
+            <h3>Luồng Đăng Nhập Chi Tiết</h3>
+            <table class="use-case-table">
+                <thead>
+                    <tr>
+                        <th>Step</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1</td>
+                        <td>User nhập username + password</td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td>Frontend validate, send to API</td>
+                    </tr>
+                    <tr>
+                        <td>3</td>
+                        <td>API check rate limit (10 req/min)</td>
+                    </tr>
+                    <tr>
+                        <td>4</td>
+                        <td>API query user by username</td>
+                    </tr>
+                    <tr>
+                        <td>5</td>
+                        <td>Nếu không tìm → Error 401</td>
+                    </tr>
+                    <tr>
+                        <td>6</td>
+                        <td>Verify password (bcrypt)</td>
+                    </tr>
+                    <tr>
+                        <td>7</td>
+                        <td>Nếu sai → Increment failed_count</td>
+                    </tr>
+                    <tr>
+                        <td>8</td>
+                        <td>Nếu failed_count >= 5 → Lock account 30min</td>
+                    </tr>
+                    <tr>
+                        <td>9</td>
+                        <td>Nếu đúng → Generate tokens (JWT)</td>
+                    </tr>
+                    <tr>
+                        <td>10</td>
+                        <td>Store refresh_token hash in DB</td>
+                    </tr>
+                    <tr>
+                        <td>11</td>
+                        <td>Create audit log (action=login)</td>
+                    </tr>
+                    <tr>
+                        <td>12</td>
+                        <td>Return tokens to frontend</td>
+                    </tr>
+                    <tr>
+                        <td>13</td>
+                        <td>Frontend save in localStorage</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Summary Tab -->
+        <div id="summary" class="content-container">
+            <h2>📊 Summary - Tóm Tắt Use Cases</h2>
+            
+            <h3>📈 Thống Kê</h3>
+            <div class="info-box">
+                <strong>Tổng Số Use Cases:</strong> 24<br>
+                <strong>Actors:</strong> 4 (User, Doctor, Admin, System)<br>
+                <strong>Modules:</strong> 6 (Auth, Prediction, History, Stats, Admin, Processing)
+            </div>
+            
+            <h3>Phân Bố Use Cases Theo Module</h3>
+            <table class="use-case-table">
+                <thead>
+                    <tr>
+                        <th>Module</th>
+                        <th>Số Use Cases</th>
+                        <th>Ví Dụ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>🔐 Authentication</td>
+                        <td>4</td>
+                        <td>Register, Login, Logout, Refresh Token</td>
+                    </tr>
+                    <tr>
+                        <td>🔍 Prediction</td>
+                        <td>5</td>
+                        <td>Upload, Single, Batch, Progress, Download PDF</td>
+                    </tr>
+                    <tr>
+                        <td>📋 History & Review</td>
+                        <td>6</td>
+                        <td>View, Filter, Detail, Review, Add Note, Confirm</td>
+                    </tr>
+                    <tr>
+                        <td>📊 Statistics</td>
+                        <td>3</td>
+                        <td>Dashboard, Charts, Export Report</td>
+                    </tr>
+                    <tr>
+                        <td>⚙️ Administration</td>
+                        <td>6</td>
+                        <td>Manage Users, CRUD, Audit Log, Dashboard</td>
+                    </tr>
+                    <tr>
+                        <td>⚙️ Processing</td>
+                        <td>5</td>
+                        <td>Queue, Process, AI Models, Report, Notify</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <h3>Actor-UseCase Matrix</h3>
+            <table class="use-case-table" style="font-size: 0.9em;">
+                <thead>
+                    <tr>
+                        <th>Use Case</th>
+                        <th>User</th>
+                        <th>Doctor</th>
+                        <th>Admin</th>
+                        <th>System</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Register</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td></tr>
+                    <tr><td>Login</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td></tr>
+                    <tr><td>Upload Image</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td></tr>
+                    <tr><td>Single Prediction</td><td>✅</td><td>❌</td><td>❌</td><td>✅</td></tr>
+                    <tr><td>View History</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td></tr>
+                    <tr><td>Doctor Review</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td></tr>
+                    <tr><td>View Dashboard</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td></tr>
+                    <tr><td>Manage Users</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td></tr>
+                    <tr><td>View Audit Log</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td></tr>
+                </tbody>
+            </table>
+            
+            <div class="info-box" style="margin-top: 30px;">
+                <strong>📌 Key Workflows:</strong><br>
+                • <strong>User Journey:</strong> Register → Login → Upload → View Progress → View History<br>
+                • <strong>Doctor Journey:</strong> Login → View Details → Doctor Review → Add Note → Confirm<br>
+                • <strong>Admin Journey:</strong> Login → Dashboard → Manage Users → View Audit Logs<br>
+                • <strong>System Journey:</strong> Queue Task → Process → Notify → Update Results
+            </div>
+        </div>
+        
+        <!-- Download Section -->
+        <div class="download-section">
+            <h3>📥 Tải Tài Liệu</h3>
+            <a href="USE_CASES.md" class="download-btn">📄 Tải Markdown</a>
+            <button class="download-btn" onclick="printPage()">🖨️ In / Lưu PDF</button>
+        </div>
+    </div>
+    
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true, 
+            theme: 'default',
+            securityLevel: 'loose'
+        });
+        
+        function showTab(tabId) {
+            const containers = document.querySelectorAll('.content-container');
+            containers.forEach(c => c.classList.remove('active'));
+            
+            const buttons = document.querySelectorAll('.tab-btn');
+            buttons.forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+            
+            mermaid.contentLoaded();
+        }
+        
+        function printPage() {
+            window.print();
+        }
+    </script>
+</body>
+</html>

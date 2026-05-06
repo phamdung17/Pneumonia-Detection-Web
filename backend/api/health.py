@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.database.connection import get_db
-from backend.models.loader import model_registry
+from ..database.connection import get_db
+from ..models.loader import model_registry
 
 
 router = APIRouter(prefix='/health', tags=['health'])

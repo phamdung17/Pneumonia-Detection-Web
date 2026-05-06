@@ -7,6 +7,8 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || defaultApiUrl,
 });
 
+let refreshPromise: Promise<{ access_token: string; refresh_token?: string }> | null = null;
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("access_token");
   if (token) {
@@ -26,14 +28,22 @@ api.interceptors.response.use(
       
       if (refreshToken) {
         try {
-          const response = await axios.post(`${api.defaults.baseURL}/api/auth/refresh`, {
-            refresh_token: refreshToken,
-          });
-          const { access_token, refresh_token } = response.data;
+          if (!refreshPromise) {
+            refreshPromise = axios
+              .post(`${api.defaults.baseURL}/api/auth/refresh`, {
+                refresh_token: refreshToken,
+              })
+              .then((response) => response.data)
+              .finally(() => {
+                refreshPromise = null;
+              });
+          }
+          const { access_token, refresh_token } = await refreshPromise;
           localStorage.setItem("access_token", access_token);
           if (refresh_token) {
             localStorage.setItem("refresh_token", refresh_token);
           }
+          originalRequest.headers = originalRequest.headers ?? {};
           originalRequest.headers.Authorization = `Bearer ${access_token}`;
           api.defaults.headers.common.Authorization = `Bearer ${access_token}`;
           return api(originalRequest);
