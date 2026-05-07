@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Request
@@ -10,16 +11,29 @@ from ..auth.jwt import create_access_token, create_refresh_token
 from ..auth.password import hash_password, verify_password
 from ..config import get_settings
 from ..database.connection import get_db
-from ..database.crud import create_audit_log, create_stored_refresh_token, create_user, get_user_by_email, get_user_by_username, get_valid_refresh_token, revoke_refresh_token
+from ..database.crud import (
+    create_audit_log,
+    create_password_reset_token,
+    create_stored_refresh_token,
+    create_user,
+    get_user_by_email,
+    get_user_by_username,
+    get_valid_password_reset_token,
+    get_valid_refresh_token,
+    mark_password_reset_token_used,
+    revoke_refresh_token,
+    revoke_refresh_tokens_for_user,
+)
 from ..database.helpers import update_user_security_log, get_user_security_log
 from ..database.models import User, UserRole
-from ..schemas import ChangePasswordRequest, LoginRequest, MessageResponse, ProfileUpdateRequest, RefreshRequest, TokenResponse, UserRead, UserRegister
+from ..schemas import ChangePasswordRequest, ForgotPasswordRequest, ForgotPasswordResponse, LoginRequest, MessageResponse, ProfileUpdateRequest, RefreshRequest, ResetPasswordRequest, TokenResponse, UserRead, UserRegister
 from ..utils.errors import AuthenticationAppError, PermissionAppError, ValidationAppError
 from ..utils.rate_limit import check_rate_limit
 
 
 router = APIRouter(prefix='/api/auth', tags=['auth'])
 settings = get_settings()
+RESET_TOKEN_EXPIRE_MINUTES = 15
 
 
 @router.post('/register', response_model=TokenResponse)
@@ -71,6 +85,61 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     create_stored_refresh_token(db, user_id=user.id, token=refresh_token, expires_in_days=settings.jwt_refresh_expire_days)
     create_audit_log(db, user_id=user.id, action='login', target_type='user', target_id=str(user.id), ip_address=get_client_ip(request), user_agent=request.headers.get('user-agent'))
     return TokenResponse(access_token=access_token, refresh_token=refresh_token, user=UserRead.model_validate(user))
+
+
+@router.post('/forgot-password', response_model=ForgotPasswordResponse)
+def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)) -> ForgotPasswordResponse:
+    check_rate_limit(f'ratelimit:forgot-password:{get_client_ip(request)}', 5, 60)
+    user = get_user_by_email(db, payload.email)
+    if not user:
+        raise ValidationAppError('Email chưa được đăng ký')
+    if not user.is_active:
+        raise PermissionAppError('Tài khoản tạm thời bị vô hiệu hóa')
+
+    reset_token = secrets.token_urlsafe(32)
+    create_password_reset_token(db, user_id=user.id, token=reset_token, expires_in_minutes=RESET_TOKEN_EXPIRE_MINUTES)
+    create_audit_log(
+        db,
+        user_id=user.id,
+        action='password_reset_requested',
+        target_type='user',
+        target_id=str(user.id),
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get('user-agent'),
+    )
+    return ForgotPasswordResponse(
+        message='Email hợp lệ, bạn có thể đặt lại mật khẩu.',
+        reset_token=reset_token,
+        reset_url=f'/reset-password?token={reset_token}',
+        expires_in_minutes=RESET_TOKEN_EXPIRE_MINUTES,
+    )
+
+
+@router.post('/reset-password', response_model=MessageResponse)
+def reset_password(payload: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)) -> MessageResponse:
+    check_rate_limit(f'ratelimit:reset-password:{get_client_ip(request)}', 10, 60)
+    reset_token = get_valid_password_reset_token(db, payload.token)
+    if not reset_token:
+        raise ValidationAppError('Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn')
+
+    user = reset_token.user
+    user.password_hash = hash_password(payload.new_password)
+    user.failed_login_count = 0
+    user.locked_until = None
+    db.add(user)
+    db.commit()
+    mark_password_reset_token_used(db, reset_token)
+    revoke_refresh_tokens_for_user(db, user.id)
+    create_audit_log(
+        db,
+        user_id=user.id,
+        action='password_reset_completed',
+        target_type='user',
+        target_id=str(user.id),
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get('user-agent'),
+    )
+    return MessageResponse(message='Đổi mật khẩu thành công')
 
 
 @router.post('/logout', response_model=MessageResponse)

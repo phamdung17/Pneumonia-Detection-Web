@@ -14,7 +14,7 @@ const PrivateRoute: React.FC<PrivateRouteProps> = ({ children, roles }) => {
   if (isInitializing || !hasInitialized) {
     return (
       <div className="flex h-screen items-center justify-center text-sm font-semibold text-slate-500">
-        Dang khoi phuc phien dang nhap...
+        Đang khôi phục phiên đăng nhập...
       </div>
     );
   }

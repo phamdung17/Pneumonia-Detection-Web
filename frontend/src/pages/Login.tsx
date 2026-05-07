@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { motion } from "motion/react";
-import { ArrowRight, Lock, ShieldCheck, User } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Lock, ShieldCheck, User } from "lucide-react";
 import toast from "react-hot-toast";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
@@ -11,6 +11,7 @@ const LoginPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const login = useAuthStore((state) => state.login);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -149,13 +150,26 @@ const LoginPage: React.FC = () => {
                   <Lock size={18} />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   placeholder="••••••••"
-                  className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-12 pr-4 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-12 pr-12 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-primary"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              <div className="pt-1 text-left">
+                <Link to="/forgot-password" className="text-sm font-bold text-primary hover:underline">
+                  Quên mật khẩu?
+                </Link>
               </div>
             </motion.div>
 

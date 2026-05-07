@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import Select, func, select
@@ -117,8 +117,6 @@ def create_audit_log(db: Session, *, user_id: int | None, action: str, target_ty
 
 
 def create_stored_refresh_token(db: Session, *, user_id: int, token: str, expires_in_days: int) -> models.RefreshToken:
-    from datetime import timedelta
-
     refresh = models.RefreshToken(user_id=user_id, token_hash=hash_refresh_token(token), expires_at=datetime.utcnow() + timedelta(days=expires_in_days))
     db.add(refresh)
     db.commit()
@@ -135,6 +133,53 @@ def revoke_refresh_token(db: Session, refresh_token: models.RefreshToken) -> Non
     refresh_token.is_revoked = True
     refresh_token.revoked_at = datetime.utcnow()
     db.add(refresh_token)
+    db.commit()
+
+
+def revoke_refresh_tokens_for_user(db: Session, user_id: int) -> int:
+    tokens = db.scalars(
+        select(models.RefreshToken).where(
+            models.RefreshToken.user_id == user_id,
+            models.RefreshToken.is_revoked.is_(False),
+        )
+    ).all()
+    now = datetime.utcnow()
+    for token in tokens:
+        token.is_revoked = True
+        token.revoked_at = now
+        db.add(token)
+    db.commit()
+    return len(tokens)
+
+
+def create_password_reset_token(db: Session, *, user_id: int, token: str, expires_in_minutes: int) -> models.PasswordResetToken:
+    reset_token = models.PasswordResetToken(
+        user_id=user_id,
+        token_hash=hash_refresh_token(token),
+        expires_at=datetime.utcnow() + timedelta(minutes=expires_in_minutes),
+    )
+    db.add(reset_token)
+    db.commit()
+    db.refresh(reset_token)
+    return reset_token
+
+
+def get_valid_password_reset_token(db: Session, token: str) -> models.PasswordResetToken | None:
+    token_hash = hash_refresh_token(token)
+    return db.scalar(
+        select(models.PasswordResetToken)
+        .where(
+            models.PasswordResetToken.token_hash == token_hash,
+            models.PasswordResetToken.used_at.is_(None),
+            models.PasswordResetToken.expires_at > datetime.utcnow(),
+        )
+        .options(joinedload(models.PasswordResetToken.user))
+    )
+
+
+def mark_password_reset_token_used(db: Session, reset_token: models.PasswordResetToken) -> None:
+    reset_token.used_at = datetime.utcnow()
+    db.add(reset_token)
     db.commit()
 
 

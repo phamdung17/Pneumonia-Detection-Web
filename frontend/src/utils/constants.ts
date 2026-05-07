@@ -4,8 +4,8 @@ export const PREDICTION_COLORS = {
 };
 
 export const ROLES = {
-  admin: "Quan tri vien",
-  client: "Nguoi dung",
+  admin: "Quản trị viên",
+  client: "Người dùng",
 };
 
 export const PAGE_SIZE = 20;

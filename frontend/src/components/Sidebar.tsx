@@ -22,14 +22,14 @@ export default function Sidebar() {
   const { user, isAuthenticated, logout } = useAuthStore();
 
   const navItems = [
-    { id: "diagnosis", label: "Chan doan", icon: Stethoscope, path: "/predict" },
-    { id: "history", label: "Lich su", icon: History, path: "/history" },
-    { id: "stats", label: "Thong ke", icon: BarChart3, path: "/stats" },
-    { id: "profile", label: "Ho so", icon: UserCircle2, path: "/profile" },
+    { id: "diagnosis", label: "Chẩn đoán", icon: Stethoscope, path: "/predict" },
+    { id: "history", label: "Lịch sử", icon: History, path: "/history" },
+    { id: "stats", label: "Thống kê", icon: BarChart3, path: "/stats" },
+    { id: "profile", label: "Hồ sơ", icon: UserCircle2, path: "/profile" },
     ...(user?.role === "admin"
       ? [
           { id: "admin-dashboard", label: "Dashboard admin", icon: LayoutDashboard, path: "/admin" },
-          { id: "admin-users", label: "Nguoi dung", icon: Users, path: "/admin/users" },
+          { id: "admin-users", label: "Người dùng", icon: Users, path: "/admin/users" },
           { id: "admin-audit", label: "Audit log", icon: ScrollText, path: "/admin/audit" },
         ]
       : []),
@@ -61,8 +61,8 @@ export default function Sidebar() {
               <UserCircle2 className="text-slate-400" size={20} />
             </div>
             <div>
-              <p className="text-sm font-bold leading-tight text-slate-900">Khach</p>
-              <p className="text-[10px] font-medium text-slate-500">Che do xem truoc</p>
+              <p className="text-sm font-bold leading-tight text-slate-900">Khách</p>
+              <p className="text-[10px] font-medium text-slate-500">Chế độ xem trước</p>
             </div>
           </div>
         )}
@@ -94,7 +94,7 @@ export default function Sidebar() {
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-white shadow-lg shadow-sky-100 transition-transform active:scale-95"
         >
           <Plus size={18} />
-          Phan tich moi
+          Phân tích mới
         </Link>
 
         {isAuthenticated ? (
@@ -103,7 +103,7 @@ export default function Sidebar() {
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-600 transition-transform active:scale-95"
           >
             <LogOut size={16} />
-            Dang xuat
+            Đăng xuất
           </button>
         ) : (
           <Link
@@ -111,18 +111,18 @@ export default function Sidebar() {
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-50 py-3 text-sm font-bold text-slate-500 transition-transform active:scale-95"
           >
             <LogIn size={16} />
-            Dang nhap
+            Đăng nhập
           </Link>
         )}
 
         <div className="space-y-1 border-t border-slate-100 pt-4">
           <Link to="/profile" className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-all hover:bg-slate-50">
             <Settings size={18} />
-            <span>Ho so va bao mat</span>
+            <span>Hồ sơ và bảo mật</span>
           </Link>
           <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-all hover:bg-slate-50">
             <Info size={18} />
-            <span>Ho tro</span>
+            <span>Hỗ trợ</span>
           </button>
         </div>
       </div>

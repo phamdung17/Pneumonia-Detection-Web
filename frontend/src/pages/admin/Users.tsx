@@ -61,7 +61,7 @@ export default function UsersPage() {
         }
       }
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail?.message || "Khong tai duoc danh sach nguoi dung.");
+      toast.error(error?.response?.data?.detail?.message || "Không tải được danh sách người dùng.");
     } finally {
       setIsLoading(false);
     }
@@ -94,9 +94,9 @@ export default function UsersPage() {
       const response = await api.put<AdminUser>(`/api/admin/users/${selectedUser.id}`, formState);
       setSelectedUser(response.data);
       setUsers((prev) => prev.map((user) => (user.id === response.data.id ? response.data : user)));
-      toast.success("Cap nhat nguoi dung thanh cong.");
+      toast.success("Cập nhật người dùng thành công.");
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail?.message || "Khong cap nhat duoc nguoi dung.");
+      toast.error(error?.response?.data?.detail?.message || "Không cập nhật được người dùng.");
     } finally {
       setIsSaving(false);
     }
@@ -107,14 +107,14 @@ export default function UsersPage() {
     try {
       if (user.is_active) {
         await api.put(`/api/admin/users/${user.id}/lock`);
-        toast.success("Da khoa tai khoan.");
+        toast.success("Đã khóa tài khoản.");
       } else {
         await api.put(`/api/admin/users/${user.id}`, { is_active: true });
-        toast.success("Da mo khoa tai khoan.");
+        toast.success("Đã mở khóa tài khoản.");
       }
       await loadUsers(searchTerm);
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail?.message || "Khong thay doi duoc trang thai tai khoan.");
+      toast.error(error?.response?.data?.detail?.message || "Không thay đổi được trạng thái tài khoản.");
     } finally {
       setIsSaving(false);
     }
@@ -124,10 +124,10 @@ export default function UsersPage() {
     setIsSaving(true);
     try {
       await api.put(`/api/admin/users/${user.id}/unlock`);
-      toast.success("Da mo khoa dang nhap.");
+      toast.success("Đã mở khóa đăng nhập.");
       await loadUsers(searchTerm);
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail?.message || "Khong mo khoa duoc tai khoan.");
+      toast.error(error?.response?.data?.detail?.message || "Không mở khóa được tài khoản.");
     } finally {
       setIsSaving(false);
     }
@@ -138,25 +138,25 @@ export default function UsersPage() {
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
           <h1 className="mb-2 font-headline text-3xl font-extrabold tracking-tight text-slate-900">
-            Quan ly nguoi dung
+            Quản lý người dùng
           </h1>
           <p className="font-medium text-slate-500">
-            Theo doi tai khoan, doi vai tro va khoa/mo khoa truy cap cua nguoi dung.
+            Theo dõi tài khoản, đổi vai trò và khóa/mở khóa truy cập của người dùng.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tong nguoi dung</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tổng người dùng</p>
           <p className="mt-3 text-3xl font-black text-slate-900">{total}</p>
         </div>
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Dang hoat dong</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Đang hoạt động</p>
           <p className="mt-3 text-3xl font-black text-emerald-600">{activeUsers}</p>
         </div>
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Admin tren trang</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Admin trên trang</p>
           <p className="mt-3 text-3xl font-black text-primary">{adminUsers}</p>
         </div>
       </div>
@@ -166,7 +166,7 @@ export default function UsersPage() {
           <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
             <input
               type="text"
-              placeholder="Tim theo ten, username, email hoac so dien thoai"
+              placeholder="Tìm theo tên, username, email hoặc số điện thoại"
               className="w-full rounded-xl bg-slate-50 py-2.5 px-4 text-sm outline-none ring-0 focus:bg-white focus:shadow-sm"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
@@ -176,9 +176,9 @@ export default function UsersPage() {
           <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
             <div className="divide-y divide-slate-50">
               {isLoading ? (
-                <div className="px-6 py-10 text-center text-sm font-medium text-slate-400">Dang tai du lieu...</div>
+                <div className="px-6 py-10 text-center text-sm font-medium text-slate-400">Đang tải dữ liệu...</div>
               ) : users.length === 0 ? (
-                <div className="px-6 py-10 text-center text-sm font-medium text-slate-400">Khong co nguoi dung phu hop.</div>
+                <div className="px-6 py-10 text-center text-sm font-medium text-slate-400">Không có người dùng phù hợp.</div>
               ) : (
                 users.map((user) => (
                   <button
@@ -206,7 +206,7 @@ export default function UsersPage() {
                       </div>
                       <p className="mt-1 text-xs font-medium text-slate-500">@{user.username}</p>
                       <p className="mt-1 text-xs text-slate-400">{user.email || "-"}</p>
-                      <p className="mt-1 text-xs text-slate-400">{user.phone || "Chua cap nhat so dien thoai"}</p>
+                      <p className="mt-1 text-xs text-slate-400">{user.phone || "Chưa cập nhật số điện thoại"}</p>
                     </div>
                     <div className="text-right text-xs text-slate-400">
                       <p>{ROLES[user.role]}</p>
@@ -222,7 +222,7 @@ export default function UsersPage() {
         <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
           {!selectedUser ? (
             <div className="flex h-full min-h-[320px] items-center justify-center text-center text-sm font-medium text-slate-400">
-              Chon mot nguoi dung de xem va cap nhat thong tin quan tri.
+              Chọn một người dùng để xem và cập nhật thông tin quản trị.
             </div>
           ) : (
             <form onSubmit={handleUpdateUser} className="space-y-6">
@@ -241,19 +241,19 @@ export default function UsersPage() {
 
               <div className="space-y-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
                 <p>Email: <span className="font-semibold text-slate-800">{selectedUser.email || "-"}</span></p>
-                <p>Phone: <span className="font-semibold text-slate-800">{selectedUser.phone || "-"}</span></p>
-                <p>Lan dang nhap cuoi: <span className="font-semibold text-slate-800">{selectedUser.last_login ? new Date(selectedUser.last_login).toLocaleString() : "Chua co"}</span></p>
+                <p>Số điện thoại: <span className="font-semibold text-slate-800">{selectedUser.phone || "-"}</span></p>
+                <p>Lần đăng nhập cuối: <span className="font-semibold text-slate-800">{selectedUser.last_login ? new Date(selectedUser.last_login).toLocaleString() : "Chưa có"}</span></p>
               </div>
 
               <label className="space-y-2">
-                <span className="text-sm font-semibold text-slate-700">Vai tro</span>
+                <span className="text-sm font-semibold text-slate-700">Vai trò</span>
                 <select
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-300"
                   value={formState.role}
                   onChange={(event) => setFormState((prev) => ({ ...prev, role: event.target.value as "admin" | "client" }))}
                 >
-                  <option value="client">Nguoi dung</option>
-                  <option value="admin">Quan tri vien</option>
+                  <option value="client">Người dùng</option>
+                  <option value="admin">Quản trị viên</option>
                 </select>
               </label>
 
@@ -263,7 +263,7 @@ export default function UsersPage() {
                   checked={formState.is_active}
                   onChange={(event) => setFormState((prev) => ({ ...prev, is_active: event.target.checked }))}
                 />
-                <span className="text-sm font-semibold text-slate-700">Tai khoan duoc phep dang nhap</span>
+                <span className="text-sm font-semibold text-slate-700">Tài khoản được phép đăng nhập</span>
               </label>
 
               <div className="grid gap-3">
@@ -272,7 +272,7 @@ export default function UsersPage() {
                   disabled={isSaving}
                   className="rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white transition disabled:opacity-60"
                 >
-                  {isSaving ? "Dang luu..." : "Luu thay doi"}
+                  {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
                 </button>
                 <button
                   type="button"
@@ -280,7 +280,7 @@ export default function UsersPage() {
                   disabled={isSaving}
                   className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition disabled:opacity-60"
                 >
-                  {selectedUser.is_active ? "Khoa tai khoan" : "Mo khoa tai khoan"}
+                  {selectedUser.is_active ? "Khóa tài khoản" : "Mở khóa tài khoản"}
                 </button>
                 <button
                   type="button"
@@ -288,7 +288,7 @@ export default function UsersPage() {
                   disabled={isSaving}
                   className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-bold text-slate-700 transition disabled:opacity-60"
                 >
-                  Reset khoa dang nhap
+                  Reset khóa đăng nhập
                 </button>
               </div>
             </form>

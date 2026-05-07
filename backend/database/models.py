@@ -64,6 +64,7 @@ class User(TimestampMixin, Base):
     user_profile: Mapped["UserProfile"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
     user_security_log: Mapped["UserSecurityLog"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    password_reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     predictions: Mapped[list["Prediction"]] = relationship(back_populates="user")
     audit_logs: Mapped[list["AuditLog"]] = relationship(back_populates="user")
 
@@ -185,6 +186,18 @@ class RefreshToken(TimestampMixin, Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     user: Mapped["User"] = relationship(back_populates="refresh_tokens")
+
+
+class PasswordResetToken(TimestampMixin, Base):
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    user: Mapped["User"] = relationship(back_populates="password_reset_tokens")
 
 
 # ============================================================================

@@ -41,7 +41,7 @@ export default function AdminAuditPage() {
         });
         setLogs(response.data.items);
       } catch (error: any) {
-        toast.error(error?.response?.data?.detail?.message || "Khong tai duoc audit log.");
+        toast.error(error?.response?.data?.detail?.message || "Không tải được audit log.");
       } finally {
         setLoading(false);
       }
@@ -55,7 +55,7 @@ export default function AdminAuditPage() {
       <section className="rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
         <h1 className="font-headline text-3xl font-black text-slate-900">Audit log</h1>
         <p className="mt-2 text-sm font-medium text-slate-500">
-          Theo doi cac thao tac quan trong cua nguoi dung va quan tri vien.
+          Theo dõi các thao tác quan trọng của người dùng và quản trị viên.
         </p>
       </section>
 
@@ -64,7 +64,7 @@ export default function AdminAuditPage() {
           className="w-full rounded-2xl bg-slate-50 px-4 py-3 outline-none transition focus:bg-white focus:shadow-sm"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Tim theo action, target type hoac target id"
+          placeholder="Tìm theo action, target type hoặc target id"
         />
       </section>
 
@@ -73,7 +73,7 @@ export default function AdminAuditPage() {
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/70">
-                <th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-400">Thoi gian</th>
+                <th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-400">Thời gian</th>
                 <th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-400">Action</th>
                 <th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-400">Target</th>
                 <th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-slate-400">User ID</th>
@@ -85,13 +85,13 @@ export default function AdminAuditPage() {
               {loading ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-400">
-                    Dang tai audit log...
+                    Đang tải audit log...
                   </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-400">
-                    Chua co ban ghi phu hop.
+                    Chưa có bản ghi phù hợp.
                   </td>
                 </tr>
               ) : (

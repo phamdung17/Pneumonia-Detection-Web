@@ -73,6 +73,32 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return _validate_email(value)
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+    reset_token: str
+    reset_url: str
+    expires_in_minutes: int
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+    @field_validator('new_password')
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        return _validate_password_strength(value)
+
+
 class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str

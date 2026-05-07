@@ -1,14 +1,18 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { motion } from "motion/react";
-import { ArrowRight, Lock, Mail, ShieldCheck, User, UserCircle } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Lock, Mail, ShieldCheck, User, UserCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 
+const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     username: "",
@@ -19,6 +23,11 @@ const RegisterPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!passwordPattern.test(formData.password)) {
+      toast.error("Mật khẩu phải có tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.");
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       toast.error("Xác nhận mật khẩu không khớp");
@@ -129,7 +138,7 @@ const RegisterPage: React.FC = () => {
                   <input
                     type="text"
                     required
-                    placeholder="Nguyen Van A"
+                    placeholder="Nguyễn Văn A"
                     className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
                     value={formData.fullName}
                     onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
@@ -184,15 +193,26 @@ const RegisterPage: React.FC = () => {
                   <Lock size={18} />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
-                  minLength={6}
+                  minLength={8}
                   placeholder="••••••••"
-                  className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-12 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-primary"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
+              <p className="ml-1 text-xs font-medium text-slate-400">
+                Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -204,14 +224,22 @@ const RegisterPage: React.FC = () => {
                   <Lock size={18} />
                 </div>
                 <input
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   required
-                  minLength={6}
+                  minLength={8}
                   placeholder="••••••••"
-                  className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-12 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                 />
+                <button
+                  type="button"
+                  aria-label={showConfirmPassword ? "Ẩn xác nhận mật khẩu" : "Hiện xác nhận mật khẩu"}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-primary"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 

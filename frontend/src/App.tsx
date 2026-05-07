@@ -8,6 +8,8 @@ import NotFoundPage from "./pages/NotFound";
 import PredictPage from "./pages/Predict";
 import ProfilePage from "./pages/Profile";
 import RegisterPage from "./pages/Register";
+import ForgotPasswordPage from "./pages/ForgotPassword";
+import ResetPasswordPage from "./pages/ResetPassword";
 import StatsPage from "./pages/Stats";
 import AdminAuditPage from "./pages/admin/AuditLogs";
 import AdminDashboardPage from "./pages/admin/Dashboard";
@@ -19,6 +21,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         <Route
           path="/"
@@ -115,7 +119,7 @@ export default function App() {
           element={
             <Layout>
               <div className="flex h-[60vh] flex-col items-center justify-center text-slate-400">
-                Ban khong co quyen truy cap trang nay.
+                Bạn không có quyền truy cập trang này.
               </div>
             </Layout>
           }
