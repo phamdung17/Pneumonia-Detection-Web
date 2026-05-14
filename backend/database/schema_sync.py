@@ -52,14 +52,8 @@ def ensure_split_schema(engine: Engine) -> None:
         },
         "prediction_results": {
             "prediction": _enum_sql(dialect, ["normal", "pneumonia"]),
-            "ensemble_status": _enum_sql(dialect, ["confirmed", "suspected"]),
             "confidence": "FLOAT NULL",
             "prob_dn": "FLOAT NULL",
-            "prob_eff": "FLOAT NULL",
-            "disease_type": _enum_sql(dialect, ["bacterial", "viral", "covid", "none"]),
-            "bacterial_prob": "FLOAT NULL",
-            "viral_prob": "FLOAT NULL",
-            "covid_prob": "FLOAT NULL",
             "created_at": _datetime_sql(dialect),
         },
         "prediction_analysis": {
@@ -110,7 +104,7 @@ def ensure_split_schema(engine: Engine) -> None:
             )
             _normalize_legacy_user_columns(connection, inspector, dialect)
 
-        _normalize_prediction_result_enums(connection, inspector, dialect, tables)
+        _normalize_prediction_result_schema(connection, inspector, dialect, tables)
 
 
 def _enum_sql(dialect: str, values: list[str], default: str | None = None) -> str:
@@ -186,7 +180,7 @@ def _normalize_legacy_user_columns(connection, inspector, dialect: str) -> None:
         )
 
 
-def _normalize_prediction_result_enums(connection, inspector, dialect: str, tables: set[str]) -> None:
+def _normalize_prediction_result_schema(connection, inspector, dialect: str, tables: set[str]) -> None:
     if dialect != "mysql" or "prediction_results" not in tables:
         return
 
@@ -205,3 +199,16 @@ def _normalize_prediction_result_enums(connection, inspector, dialect: str, tabl
             "MODIFY COLUMN prediction ENUM('normal', 'pneumonia') NULL"
         )
     )
+
+    legacy_columns = [
+        "ensemble_status",
+        "prob_eff",
+        "disease_type",
+        "bacterial_prob",
+        "viral_prob",
+        "covid_prob",
+    ]
+    existing_columns = {column["name"] for column in inspector.get_columns("prediction_results")}
+    for column_name in legacy_columns:
+        if column_name in existing_columns:
+            connection.execute(text(f"ALTER TABLE prediction_results DROP COLUMN {column_name}"))

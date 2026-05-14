@@ -13,6 +13,7 @@ interface PredictionDetail {
   performed_at: string | null;
   prediction: "NORMAL" | "PNEUMONIA" | null;
   confidence: number | null;
+  probability?: number | null;
   doctor_note: string | null;
   doctor_confirmed: boolean | null;
   patient_name: string | null;
@@ -21,14 +22,6 @@ interface PredictionDetail {
   technician_name: string | null;
   original_url: string | null;
   heatmap_url: string | null;
-  type?: {
-    label: string | null;
-    probs?: {
-      BACTERIAL?: number | null;
-      VIRAL?: number | null;
-      COVID?: number | null;
-    } | null;
-  } | null;
 }
 
 interface PatientDraft {
@@ -120,7 +113,7 @@ const HistoryDetailPage: React.FC = () => {
     setIsConfirming(true);
     try {
       await api.put(`/api/predict/${detail.id}/confirm`, { confirmed });
-      toast.success(confirmed ? "Da xac nhan ket qua" : "Da tu choi ket qua");
+      toast.success(confirmed ? "Đã xác nhận kết quả" : "Đã từ chối kết quả");
       await loadDetail();
     } finally {
       setIsConfirming(false);
@@ -142,7 +135,7 @@ const HistoryDetailPage: React.FC = () => {
       };
 
       await api.put(`/api/predict/${detail.id}/patient`, payload);
-      setDetail((prev) => (
+      setDetail((prev) =>
         prev
           ? {
               ...prev,
@@ -152,8 +145,8 @@ const HistoryDetailPage: React.FC = () => {
               technician_name: payload.technician_name,
               performed_at: payload.performed_at,
             }
-          : prev
-      ));
+          : prev,
+      );
       toast.success("Đã lưu thông tin bệnh nhân");
     } finally {
       setIsSavingPatient(false);
@@ -186,7 +179,7 @@ const HistoryDetailPage: React.FC = () => {
 
   const performedAt = detail.performed_at || detail.created_at;
   const confidence = detail.confidence || 0;
-  const typeProbs = detail.type?.probs;
+  const probability = detail.probability;
   const originalImageUrl = toApiAssetUrl(detail.original_url);
   const heatmapImageUrl = toApiAssetUrl(detail.heatmap_url || detail.original_url || null);
 
@@ -273,7 +266,7 @@ const HistoryDetailPage: React.FC = () => {
             </div>
 
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between"><span className="text-slate-500">Loại bệnh</span><span className="font-bold text-slate-900">{detail.type?.label || "KHÔNG"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Xác suất viêm phổi</span><span className="font-bold text-slate-900">{probability != null ? `${(probability * 100).toFixed(1)}%` : "-"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Trạng thái đánh giá</span><span className="font-bold text-slate-900">{detail.doctor_confirmed === true ? "ĐÃ XÁC NHẬN" : detail.doctor_confirmed === false ? "TỪ CHỐI" : "CHỜ ĐÁNH GIÁ"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Thời gian thực hiện</span><span className="font-bold text-slate-900">{formatDate(performedAt)}</span></div>
             </div>
@@ -362,23 +355,6 @@ const HistoryDetailPage: React.FC = () => {
                 </button>
               </div>
             </div>
-
-            {typeProbs && (
-              <div className="mt-6 space-y-3">
-                <div className="text-xs font-bold uppercase tracking-widest text-slate-400">Xác suất theo loại bệnh</div>
-                {Object.entries(typeProbs).map(([label, value]) => (
-                  <div key={label}>
-                    <div className="mb-1 flex justify-between text-xs font-bold">
-                      <span>{label}</span>
-                      <span>{((value || 0) * 100).toFixed(1)}%</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${(value || 0) * 100}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </div>

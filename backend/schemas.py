@@ -142,17 +142,6 @@ class MessageResponse(BaseModel):
     message: str
 
 
-class PredictionTypeProbabilities(BaseModel):
-    BACTERIAL: float | None = None
-    VIRAL: float | None = None
-    COVID: float | None = None
-
-
-class PredictionTypeResult(BaseModel):
-    label: str | None = None
-    probs: PredictionTypeProbabilities | None = None
-
-
 class PredictionResult(BaseModel):
     id: int
     task_id: str
@@ -164,6 +153,7 @@ class PredictionResult(BaseModel):
     performed_at: datetime | None = None
     prediction: str | None = None
     confidence: float | None = None
+    probability: float | None = None
     original_url: str | None = None
     heatmap_url: str | None = None
     doctor_note: str | None = None
@@ -171,7 +161,6 @@ class PredictionResult(BaseModel):
     processing_time_ms: int | None = None
     created_at: datetime
     completed_at: datetime | None = None
-    type: PredictionTypeResult | None = None
 
 
 class NoteRequest(BaseModel):

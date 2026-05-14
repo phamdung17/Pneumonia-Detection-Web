@@ -13,7 +13,7 @@ from backend.database.helpers import (
     create_prediction_analysis,
     create_prediction_processing_log,
 )
-from backend.database.models import DiseaseType, EnsembleStatus, PredictionLabel, ProcessingStatus
+from backend.database.models import PredictionLabel, ProcessingStatus
 from backend.models.pipeline import run_pipeline
 from backend.utils.logging import error_logger, performance_logger
 from backend.worker.task_state import task_state_store
@@ -95,15 +95,7 @@ async def run_prediction_task(prediction_id: int, task_id: str) -> None:
             pipeline_result = await asyncio.to_thread(run_pipeline, task_id, prediction.file_path)
         prediction_label = pipeline_result['prediction']
         confidence = float(pipeline_result['confidence'])
-        disease_type_value = pipeline_result.get('disease_type')
-        disease_type = DiseaseType(disease_type_value) if disease_type_value else None
-        type_probs = {
-            'BACTERIAL': float(pipeline_result['bacterial_prob']) if pipeline_result.get('bacterial_prob') is not None else None,
-            'VIRAL': float(pipeline_result['viral_prob']) if pipeline_result.get('viral_prob') is not None else None,
-            'COVID': float(pipeline_result['covid_prob']) if pipeline_result.get('covid_prob') is not None else None,
-        }
-        if prediction_label == PredictionLabel.normal and disease_type is None:
-            disease_type = DiseaseType.none
+        probability = float(pipeline_result['probability']) if pipeline_result.get('probability') is not None else None
 
         task_state_store.set(
             task_id,
@@ -113,10 +105,7 @@ async def run_prediction_task(prediction_id: int, task_id: str) -> None:
                 'data': {
                     'prediction': prediction_label.value,
                     'confidence': round(confidence, 4),
-                    'type': {
-                        'label': disease_type.value if disease_type else None,
-                        'probs': type_probs,
-                    },
+                    'probability': round(probability, 4) if probability is not None else None,
                     'progress': 60,
                 },
                 'predictionId': None,
@@ -130,10 +119,7 @@ async def run_prediction_task(prediction_id: int, task_id: str) -> None:
                 'data': {
                     'prediction': prediction_label.value,
                     'confidence': round(confidence, 4),
-                    'type': {
-                        'label': disease_type.value if disease_type else None,
-                        'probs': type_probs,
-                    },
+                    'probability': round(probability, 4) if probability is not None else None,
                     'progress': 60,
                 },
                 'predictionId': None,
@@ -174,14 +160,8 @@ async def run_prediction_task(prediction_id: int, task_id: str) -> None:
             db,
             prediction.id,
             prediction=prediction_label,
-            ensemble_status=EnsembleStatus.confirmed,
             confidence=confidence,
-            prob_dn=float(pipeline_result['prob_dn']) if pipeline_result.get('prob_dn') is not None else None,
-            prob_eff=float(pipeline_result['prob_eff']) if pipeline_result.get('prob_eff') is not None else None,
-            disease_type=disease_type,
-            bacterial_prob=type_probs['BACTERIAL'],
-            viral_prob=type_probs['VIRAL'],
-            covid_prob=type_probs['COVID'],
+            prob_dn=probability,
         )
 
         # Save analysis to prediction_analysis table
@@ -219,7 +199,7 @@ async def run_prediction_task(prediction_id: int, task_id: str) -> None:
                 'task_id': prediction.task_id,
                 'prediction': prediction_label.value,
                 'confidence': confidence,
-                'type': disease_type.value if disease_type else None,
+                'probability': probability,
             },
             commit=False,
         )

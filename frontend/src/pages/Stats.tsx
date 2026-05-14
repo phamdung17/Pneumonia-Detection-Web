@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import {
   Bar,
   BarChart,
@@ -65,13 +66,12 @@ interface DashboardResponse {
     failed_cases: number;
     pneumonia_cases: number;
     normal_cases: number;
-    pneumonia_rate: number;
-    avg_confidence: number;
-    avg_processing_seconds: number;
-    last_activity_at: string | null;
+    average_confidence: number;
+    average_processing_time_ms: number;
+    confirmed_count: number;
+    rejected_count: number;
+    pending_review_count: number;
   };
-  diagnosis_distribution: DistributionItem[];
-  review_status: ReviewStatusItem[];
   weekly_trend: WeeklyTrendItem[];
   recent_activity: RecentActivityItem[];
 }
@@ -89,6 +89,8 @@ const statusStyle: Record<RecentActivityItem["status"], string> = {
   done: "bg-emerald-50 text-emerald-700 border-emerald-200",
   failed: "bg-red-50 text-red-700 border-red-200",
 };
+
+const safePercent = (part: number, whole: number) => (whole > 0 ? (part / whole) * 100 : 0);
 
 const StatsPage: React.FC = () => {
   const [data, setData] = React.useState<DashboardResponse | null>(null);
@@ -134,6 +136,38 @@ const StatsPage: React.FC = () => {
     );
   }
 
+  const lastActivityAt = data.recent_activity[0]?.created_at ?? null;
+  const completedCases = data.summary.completed_cases;
+  const pneumoniaRate = safePercent(data.summary.pneumonia_cases, completedCases);
+  const averageProcessingSeconds = data.summary.average_processing_time_ms / 1000;
+
+  const diagnosisDistribution: DistributionItem[] = [
+    {
+      name: "Viêm phổi",
+      value: data.summary.pneumonia_cases,
+      percent: safePercent(data.summary.pneumonia_cases, completedCases),
+      color: "#b91c1c",
+    },
+    {
+      name: "Bình thường",
+      value: data.summary.normal_cases,
+      percent: safePercent(data.summary.normal_cases, completedCases),
+      color: "#0f766e",
+    },
+    {
+      name: "Khác / chưa rõ",
+      value: Math.max(completedCases - data.summary.pneumonia_cases - data.summary.normal_cases, 0),
+      percent: safePercent(Math.max(completedCases - data.summary.pneumonia_cases - data.summary.normal_cases, 0), completedCases),
+      color: "#64748b",
+    },
+  ].filter((item) => item.value > 0);
+
+  const reviewStatus: ReviewStatusItem[] = [
+    { name: "Đã xác nhận", value: data.summary.confirmed_count },
+    { name: "Từ chối", value: data.summary.rejected_count },
+    { name: "Chờ đánh giá", value: data.summary.pending_review_count },
+  ];
+
   const summaryCards = [
     {
       title: "Tổng ca chẩn đoán",
@@ -145,20 +179,20 @@ const StatsPage: React.FC = () => {
     {
       title: "Ca viêm phổi",
       value: data.summary.pneumonia_cases.toLocaleString("vi-VN"),
-      sub: `${data.summary.pneumonia_rate}% trên tổng ca hoàn tất`,
+      sub: `${pneumoniaRate.toFixed(1)}% trên tổng ca hoàn tất`,
       icon: <Flame size={18} className="text-red-600" />,
       iconBg: "bg-red-50",
     },
     {
       title: "Độ tin cậy trung bình",
-      value: `${data.summary.avg_confidence.toFixed(1)}%`,
+      value: `${data.summary.average_confidence.toFixed(1)}%`,
       sub: "Được tính từ các ca hoàn tất",
       icon: <ShieldCheck size={18} className="text-emerald-600" />,
       iconBg: "bg-emerald-50",
     },
     {
       title: "Thời gian xử lý TB",
-      value: `${data.summary.avg_processing_seconds.toFixed(1)}s`,
+      value: `${averageProcessingSeconds.toFixed(1)}s`,
       sub: `${data.summary.pending_cases} ca đang xử lý`,
       icon: <Clock3 size={18} className="text-indigo-600" />,
       iconBg: "bg-indigo-50",
@@ -183,7 +217,7 @@ const StatsPage: React.FC = () => {
           )}
         </div>
         <p className="font-medium text-slate-500">
-          Bạn đã thực hiện {data.summary.total_cases} ca chẩn đoán. Hoạt động gần nhất: {data.summary.last_activity_at ? formatDate(data.summary.last_activity_at) : "Chưa có"}.
+          Bạn đã thực hiện {data.summary.total_cases} ca chẩn đoán. Hoạt động gần nhất: {lastActivityAt ? formatDate(lastActivityAt) : "Chưa có"}.
         </p>
       </section>
 
@@ -260,8 +294,8 @@ const StatsPage: React.FC = () => {
           <div className="h-52 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={data.diagnosis_distribution} dataKey="value" nameKey="name" innerRadius={56} outerRadius={84} paddingAngle={2}>
-                  {data.diagnosis_distribution.map((entry) => (
+                <Pie data={diagnosisDistribution} dataKey="value" nameKey="name" innerRadius={56} outerRadius={84} paddingAngle={2}>
+                  {diagnosisDistribution.map((entry) => (
                     <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
@@ -273,7 +307,7 @@ const StatsPage: React.FC = () => {
           </div>
 
           <div className="mt-2 space-y-3">
-            {data.diagnosis_distribution.map((item) => (
+            {diagnosisDistribution.map((item) => (
               <div key={item.name} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
@@ -335,7 +369,12 @@ const StatsPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right text-sm font-semibold text-slate-600">
-                        {item.processing_time_ms ? `${(item.processing_time_ms / 1000).toFixed(1)}s` : "-"}
+                        <div className="flex items-center justify-end gap-3">
+                          <span>{item.processing_time_ms ? `${(item.processing_time_ms / 1000).toFixed(1)}s` : "-"}</span>
+                          <Link to={`/history/${item.id}`} className="text-xs font-bold text-primary hover:underline">
+                            Chi tiết
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -352,7 +391,7 @@ const StatsPage: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {data.review_status.map((item) => (
+            {reviewStatus.map((item) => (
               <div key={item.name}>
                 <div className="mb-1 flex items-center justify-between text-sm">
                   <span className="font-semibold text-slate-600">{item.name}</span>
@@ -372,6 +411,7 @@ const StatsPage: React.FC = () => {
             <p className="mb-1 font-semibold text-slate-800">Tổng kết nhanh</p>
             <p>Đã hoàn tất: {data.summary.completed_cases} / {data.summary.total_cases} ca.</p>
             <p>Cần xử lý: {data.summary.pending_cases} ca. Lỗi: {data.summary.failed_cases} ca.</p>
+            <p>Đánh giá: {data.summary.confirmed_count} xác nhận, {data.summary.rejected_count} từ chối, {data.summary.pending_review_count} chờ xử lý.</p>
           </div>
         </div>
       </section>

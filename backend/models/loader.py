@@ -12,12 +12,6 @@ from torchvision import models
 from backend.config import BASE_DIR
 from backend.utils.logging import error_logger, performance_logger
 
-try:
-    import onnxruntime as ort
-except Exception:  # pragma: no cover - optional dependency in local dev
-    ort = None
-
-
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 WEIGHTS_DIR = BASE_DIR / 'weights'
 
@@ -28,112 +22,84 @@ def _disable_inplace_relu(module: nn.Module) -> None:
             child.inplace = False
 
 
-class DenseNetMultiHead(nn.Module):
+class DenseNetBinaryClassifier(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         base = models.densenet121(weights=None)
-        self.backbone = base.features
+        self.features = base.features
         self.pool = nn.AdaptiveAvgPool2d(1)
-        self.drop = nn.Dropout(p=0.3)
-        self.head_binary = nn.Linear(1024, 1)
-        self.head_type = nn.Linear(1024, 3)
+        self.drop = nn.Dropout(p=0.4)
+        self.head = nn.Linear(1024, 1)
 
-    @property
-    def features(self) -> nn.Module:
-        return self.backbone
-
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        feat = self.backbone(x)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        feat = self.features(x)
         feat = F.relu(feat, inplace=False)
         feat = self.pool(feat).flatten(1)
         feat = self.drop(feat)
-        return self.head_binary(feat), self.head_type(feat)
+        return self.head(feat)
 
 
 class ModelRegistry:
     def __init__(self) -> None:
         self.loaded = False
         self.device = DEVICE
-        self.onnx_session: ort.InferenceSession | None = None
-        self.torch_model: DenseNetMultiHead | None = None
+        self.torch_model: DenseNetBinaryClassifier | None = None
         self.model_status = {
-            'onnx': False,
-            'torch_gradcam': False,
+            'torch': False,
         }
 
     def load(self) -> dict[str, bool]:
-        if self.model_status['onnx'] and self.model_status['torch_gradcam']:
+        if self.model_status['torch']:
             self.loaded = True
             return dict(self.model_status)
         start = perf_counter()
-        self._load_onnx()
-        self._load_torch_gradcam()
-        self.loaded = self.model_status['onnx'] and self.model_status['torch_gradcam']
+        self._load_torch_model()
+        self.loaded = self.model_status['torch']
         performance_logger.info(
-            'models_loaded duration_ms=%s device=%s onnx=%s gradcam=%s',
+            'models_loaded duration_ms=%s device=%s torch=%s',
             int((perf_counter() - start) * 1000),
             self.device,
-            self.model_status['onnx'],
-            self.model_status['torch_gradcam'],
+            self.model_status['torch'],
         )
         return dict(self.model_status)
 
-    def _load_onnx(self) -> None:
-        if self.onnx_session is not None:
-            self.model_status['onnx'] = True
-            return
-        if ort is None:
-            error_logger.error('onnxruntime_not_available')
-            self.model_status['onnx'] = False
-            return
-        onnx_path = WEIGHTS_DIR / 'densenet_int8.onnx'
-        if not onnx_path.exists():
-            error_logger.error('onnx_model_missing path=%s', onnx_path)
-            self.model_status['onnx'] = False
-            return
-        providers = ['CPUExecutionProvider']
-        available = set(ort.get_available_providers())
-        if 'CUDAExecutionProvider' in available:
-            providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
-        self.onnx_session = ort.InferenceSession(str(onnx_path), providers=providers)
-        self.model_status['onnx'] = True
-
-    def _load_torch_gradcam(self) -> None:
+    def _load_torch_model(self) -> None:
         if self.torch_model is not None:
-            self.model_status['torch_gradcam'] = True
+            self.model_status['torch'] = True
             return
-        weights_path = WEIGHTS_DIR / 'densenet_multihead_best.pth'
+        weights_path = WEIGHTS_DIR / 'densenet_best.pth'
         if not weights_path.exists():
-            error_logger.error('torch_gradcam_weights_missing path=%s', weights_path)
-            self.model_status['torch_gradcam'] = False
+            error_logger.error('torch_weights_missing path=%s', weights_path)
+            self.model_status['torch'] = False
             return
         try:
-            model = DenseNetMultiHead()
-            state_dict = torch.load(weights_path, map_location='cpu')
+            checkpoint = torch.load(weights_path, map_location='cpu', weights_only=False)
+            state_dict = checkpoint.get('model_state', checkpoint)
+            model = DenseNetBinaryClassifier()
             model.load_state_dict(state_dict, strict=True)
             _disable_inplace_relu(model)
             model.to(self.device)
             model.eval()
             self.torch_model = model
-            self.model_status['torch_gradcam'] = True
+            self.model_status['torch'] = True
         except Exception as exc:
-            error_logger.exception('torch_gradcam_load_failed path=%s error=%s', weights_path, exc)
-            self.model_status['torch_gradcam'] = False
+            error_logger.exception('torch_model_load_failed path=%s error=%s', weights_path, exc)
+            self.model_status['torch'] = False
 
     def health(self) -> dict[str, bool]:
         return {
-            'loaded': self.model_status['onnx'] and self.model_status['torch_gradcam'],
-            'onnx': self.model_status['onnx'],
-            'torch_gradcam': self.model_status['torch_gradcam'],
+            'loaded': self.model_status['torch'],
+            'torch': self.model_status['torch'],
         }
 
     def inference_test_ms(self) -> int | None:
-        if self.onnx_session is None:
+        if self.torch_model is None:
             return None
-        input_name = self.onnx_session.get_inputs()[0].name
         dummy = np.zeros((1, 3, 224, 224), dtype=np.float32)
+        tensor = torch.from_numpy(dummy).to(self.device)
         start = perf_counter()
-        self.onnx_session.run(None, {input_name: dummy})
+        with torch.inference_mode():
+            self.torch_model(tensor)
         return int((perf_counter() - start) * 1000)
 
 

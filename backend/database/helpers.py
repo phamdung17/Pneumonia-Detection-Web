@@ -10,8 +10,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
 
 from backend.database.models import (
-    EnsembleStatus,
-    DiseaseType,
     PredictionLabel,
     Prediction,
     PredictionPatientInfo,
@@ -360,15 +358,9 @@ class PredictionDetailDTO:
         if prediction.results:
             self.results = {
                 "prediction": prediction.results.prediction,
-                "ensemble_status": prediction.results.ensemble_status,
                 "confidence": prediction.results.confidence,
-                "disease_type": prediction.results.disease_type,
                 "probabilities": {
-                    "normal": prediction.results.prob_dn,
-                    "pneumonia": prediction.results.prob_eff,
-                    "bacterial": prediction.results.bacterial_prob,
-                    "viral": prediction.results.viral_prob,
-                    "covid": prediction.results.covid_prob,
+                    "pneumonia": prediction.results.prob_dn,
                 }
             }
         else:
@@ -512,22 +504,12 @@ def create_prediction_results(
     db: Session,
     prediction_id: int,
     prediction: Optional[object] = None,
-    ensemble_status: Optional[str] = None,
     confidence: Optional[float] = None,
     prob_dn: Optional[float] = None,
-    prob_eff: Optional[float] = None,
-    disease_type: Optional[str] = None,
-    bacterial_prob: Optional[float] = None,
-    viral_prob: Optional[float] = None,
-    covid_prob: Optional[float] = None,
 ) -> PredictionResults:
     """Create or update prediction results"""
     if isinstance(prediction, str):
         prediction = PredictionLabel[prediction] if prediction in PredictionLabel.__members__ else PredictionLabel(prediction)
-    if isinstance(ensemble_status, str):
-        ensemble_status = EnsembleStatus[ensemble_status] if ensemble_status in EnsembleStatus.__members__ else EnsembleStatus(ensemble_status)
-    if isinstance(disease_type, str):
-        disease_type = DiseaseType[disease_type] if disease_type in DiseaseType.__members__ else DiseaseType(disease_type)
 
     existing = db.query(PredictionResults).filter(
         PredictionResults.prediction_id == prediction_id
@@ -535,28 +517,16 @@ def create_prediction_results(
     
     if existing:
         existing.prediction = prediction
-        existing.ensemble_status = ensemble_status
         existing.confidence = confidence
         existing.prob_dn = prob_dn
-        existing.prob_eff = prob_eff
-        existing.disease_type = disease_type
-        existing.bacterial_prob = bacterial_prob
-        existing.viral_prob = viral_prob
-        existing.covid_prob = covid_prob
         db.add(existing)
         return existing
     
     results = PredictionResults(
         prediction_id=prediction_id,
         prediction=prediction,
-        ensemble_status=ensemble_status,
         confidence=confidence,
         prob_dn=prob_dn,
-        prob_eff=prob_eff,
-        disease_type=disease_type,
-        bacterial_prob=bacterial_prob,
-        viral_prob=viral_prob,
-        covid_prob=covid_prob,
     )
     db.add(results)
     return results

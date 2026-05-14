@@ -9,10 +9,8 @@ interface HistoryItem {
   created_at: string;
   prediction: "NORMAL" | "PNEUMONIA" | null;
   confidence: number | null;
+  probability?: number | null;
   doctor_confirmed: boolean | null;
-  type?: {
-    label: string | null;
-  } | null;
 }
 
 const getReviewStatus = (item: HistoryItem) => {
@@ -68,8 +66,8 @@ const HistoryPage: React.FC = () => {
                 <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">ID</th>
                 <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Thời gian</th>
                 <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Chẩn đoán</th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Loại</th>
                 <th className="px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-slate-400">Độ tin cậy</th>
+                <th className="px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-slate-400">Xác suất</th>
                 <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Đánh giá</th>
                 <th className="px-6 py-4 text-right text-[10px] font-bold uppercase tracking-widest text-slate-400">Thao tác</th>
               </tr>
@@ -94,7 +92,6 @@ const HistoryPage: React.FC = () => {
                         {getPredictionLabel((item.prediction || "NORMAL") as "NORMAL" | "PNEUMONIA")}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.type?.label || "KHÔNG"}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-3">
                         <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
@@ -106,13 +103,13 @@ const HistoryPage: React.FC = () => {
                         <span className="text-sm font-bold text-slate-700">{((item.confidence || 0) * 100).toFixed(1)}%</span>
                       </div>
                     </td>
+                    <td className="px-6 py-4 text-center text-sm font-bold text-slate-700">
+                      {item.probability != null ? `${(item.probability * 100).toFixed(1)}%` : "-"}
+                    </td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-600">{getReviewStatus(item)}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="inline-flex items-center gap-2">
-                        <button
-                          onClick={() => navigate(`/history/${item.id}`)}
-                          className="text-sm font-bold text-primary hover:underline"
-                        >
+                        <button onClick={() => navigate(`/history/${item.id}`)} className="text-sm font-bold text-primary hover:underline">
                           Sửa
                         </button>
                         <button

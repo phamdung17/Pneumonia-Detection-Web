@@ -77,10 +77,9 @@ def _resolve_original_image(prediction: Prediction) -> Path | None:
 
 
 def _resolve_heatmap_image(prediction: Prediction) -> Path | None:
-    for candidate in (prediction.heatmap_dn_path, prediction.heatmap_eff_path):
-        resolved = _resolve_existing_path(candidate)
-        if resolved:
-            return resolved
+    resolved = _resolve_existing_path(prediction.heatmap_dn_path)
+    if resolved:
+        return resolved
 
     original = _resolve_original_image(prediction)
     if original:
@@ -94,12 +93,12 @@ def _draw_header(pdf: canvas.Canvas, width: float, height: float, prediction: Pr
     top = height - 42
     pdf.setFillColor(colors.HexColor("#0F172A"))
     pdf.setFont(FONT_BOLD, 16)
-    pdf.drawString(40, top, "BÁO CÁO CHẨN ĐOÁN X-QUANG NGỰC")
+    pdf.drawString(40, top, "CHEST X-RAY AI REPORT")
 
     pdf.setFillColor(colors.HexColor("#475569"))
     pdf.setFont(FONT_REGULAR, 9)
-    pdf.drawRightString(width - 40, top + 2, f"Mã báo cáo: XR-{prediction.id}")
-    pdf.drawRightString(width - 40, top - 12, f"Thời gian tạo: {_format_dt(prediction.created_at)}")
+    pdf.drawRightString(width - 40, top + 2, f"Report ID: XR-{prediction.id}")
+    pdf.drawRightString(width - 40, top - 12, f"Created at: {_format_dt(prediction.created_at)}")
 
     pdf.setStrokeColor(colors.HexColor("#E2E8F0"))
     pdf.line(40, top - 20, width - 40, top - 20)
@@ -188,17 +187,17 @@ def _draw_image_panel(pdf: canvas.Canvas, x: float, y: float, width: float, heig
         except Exception:
             pdf.setFillColor(colors.HexColor("#94A3B8"))
             pdf.setFont(FONT_REGULAR, 9)
-            pdf.drawCentredString(x + width / 2, panel_bottom + height / 2, "Không thể hiển thị ảnh")
+            pdf.drawCentredString(x + width / 2, panel_bottom + height / 2, "Unable to render image")
     else:
         pdf.setFillColor(colors.HexColor("#94A3B8"))
         pdf.setFont(FONT_REGULAR, 9)
-        pdf.drawCentredString(x + width / 2, panel_bottom + height / 2, "Không có dữ liệu ảnh")
+        pdf.drawCentredString(x + width / 2, panel_bottom + height / 2, "No image available")
 
     file_name, resolution = _image_metadata(image_path)
     pdf.setFillColor(colors.HexColor("#475569"))
     pdf.setFont(FONT_REGULAR, 8)
-    pdf.drawString(x + 8, panel_bottom + 14, f"Tập tin: {file_name}")
-    pdf.drawRightString(x + width - 8, panel_bottom + 14, f"Độ phân giải: {resolution}")
+    pdf.drawString(x + 8, panel_bottom + 14, f"File: {file_name}")
+    pdf.drawRightString(x + width - 8, panel_bottom + 14, f"Resolution: {resolution}")
     return panel_bottom - 18
 
 
@@ -210,59 +209,55 @@ def build_prediction_pdf(prediction: Prediction) -> bytes:
     pdf.setTitle(f"XR-{prediction.id}")
     y = _draw_header(pdf, width, height, prediction)
 
-    y = _draw_section_title(pdf, 40, y, "1) Thông tin ca chụp")
-    y = _draw_key_value(pdf, 40, y, "Mã dự đoán", f"#{prediction.id}")
-    y = _draw_key_value(pdf, 40, y, "Mã tác vụ", prediction.task_id)
-    y = _draw_key_value(pdf, 40, y, "Trạng thái", prediction.status.value)
-    y = _draw_key_value(pdf, 40, y, "Thời gian thực hiện", _format_dt(prediction.performed_at))
-    y = _draw_key_value(pdf, 40, y, "Thời gian hoàn tất", _format_dt(prediction.completed_at))
+    y = _draw_section_title(pdf, 40, y, "1) Study")
+    y = _draw_key_value(pdf, 40, y, "Prediction ID", f"#{prediction.id}")
+    y = _draw_key_value(pdf, 40, y, "Task ID", prediction.task_id)
+    y = _draw_key_value(pdf, 40, y, "Status", prediction.status.value)
+    y = _draw_key_value(pdf, 40, y, "Performed at", _format_dt(prediction.performed_at))
+    y = _draw_key_value(pdf, 40, y, "Completed at", _format_dt(prediction.completed_at))
     y -= 6
 
-    y = _draw_section_title(pdf, 40, y, "2) Thông tin bệnh nhân")
-    y = _draw_key_value(pdf, 40, y, "Họ tên", prediction.patient_name or "-")
-    y = _draw_key_value(pdf, 40, y, "Tuổi", str(prediction.patient_age) if prediction.patient_age is not None else "-")
-    y = _draw_key_value(pdf, 40, y, "Giới tính", prediction.patient_gender or "-")
-    y = _draw_key_value(pdf, 40, y, "Kỹ thuật viên", prediction.technician_name or "-")
+    y = _draw_section_title(pdf, 40, y, "2) Patient")
+    y = _draw_key_value(pdf, 40, y, "Name", prediction.patient_name or "-")
+    y = _draw_key_value(pdf, 40, y, "Age", str(prediction.patient_age) if prediction.patient_age is not None else "-")
+    y = _draw_key_value(pdf, 40, y, "Gender", prediction.patient_gender or "-")
+    y = _draw_key_value(pdf, 40, y, "Technician", prediction.technician_name or "-")
     y -= 6
 
-    y = _draw_section_title(pdf, 40, y, "3) Kết quả AI")
-    y = _draw_key_value(pdf, 40, y, "Kết luận", _prediction_label(prediction))
-    y = _draw_key_value(pdf, 40, y, "Độ tin cậy mô hình", _format_pct(prediction.confidence))
-    y = _draw_key_value(pdf, 40, y, "Xác suất viêm phổi", _format_pct(prediction.prob_dn))
-    y = _draw_key_value(pdf, 40, y, "Loại bệnh", prediction.disease_type.value if prediction.disease_type else "N/A")
-    y = _draw_key_value(pdf, 40, y, "Vi khuẩn", _format_pct(prediction.bacterial_prob))
-    y = _draw_key_value(pdf, 40, y, "Virus", _format_pct(prediction.viral_prob))
-    y = _draw_key_value(pdf, 40, y, "COVID", _format_pct(prediction.covid_prob))
+    y = _draw_section_title(pdf, 40, y, "3) AI Result")
+    y = _draw_key_value(pdf, 40, y, "Prediction", _prediction_label(prediction))
+    y = _draw_key_value(pdf, 40, y, "Confidence", _format_pct(prediction.confidence))
+    y = _draw_key_value(pdf, 40, y, "Pneumonia probability", _format_pct(prediction.prob_dn))
     y -= 6
 
-    y = _draw_section_title(pdf, 40, y, "4) Đánh giá lâm sàng")
+    y = _draw_section_title(pdf, 40, y, "4) Clinical Review")
     y = _draw_key_value(
         pdf,
         40,
         y,
-        "Trạng thái bác sĩ",
-        "ĐÃ XÁC NHẬN" if prediction.doctor_confirmed is True else "TỪ CHỐI" if prediction.doctor_confirmed is False else "CHỜ ĐÁNH GIÁ",
+        "Doctor status",
+        "CONFIRMED" if prediction.doctor_confirmed is True else "REJECTED" if prediction.doctor_confirmed is False else "PENDING",
     )
-    y = _draw_key_value(pdf, 40, y, "Ghi chú", "")
+    y = _draw_key_value(pdf, 40, y, "Note", "")
     pdf.setFont(FONT_REGULAR, 9)
     pdf.setFillColor(colors.HexColor("#0F172A"))
     _draw_multiline_text(pdf, 170, y + 14, width - 210, prediction.doctor_note or "-")
 
     pdf.setFillColor(colors.HexColor("#64748B"))
     pdf.setFont(FONT_REGULAR, 8)
-    pdf.drawString(40, 28, "Báo cáo được tạo tự động từ hệ thống Pneumonia Detection.")
+    pdf.drawString(40, 28, "Generated automatically by the Pneumonia Detection system.")
 
     pdf.showPage()
 
     y2 = _draw_header(pdf, width, height, prediction)
-    y2 = _draw_section_title(pdf, 40, y2, "5) Hình ảnh chẩn đoán")
+    y2 = _draw_section_title(pdf, 40, y2, "5) Images")
 
     original_image_path = _resolve_original_image(prediction)
     heatmap_image_path = _resolve_heatmap_image(prediction)
 
     panel_height = 300
-    y2 = _draw_image_panel(pdf, 40, y2, width - 80, panel_height, "Ảnh X-quang gốc", original_image_path)
-    _draw_image_panel(pdf, 40, y2, width - 80, panel_height, "Ảnh Grad-CAM", heatmap_image_path)
+    y2 = _draw_image_panel(pdf, 40, y2, width - 80, panel_height, "Original X-ray", original_image_path)
+    _draw_image_panel(pdf, 40, y2, width - 80, panel_height, "Grad-CAM", heatmap_image_path)
 
     pdf.save()
     return buffer.getvalue()

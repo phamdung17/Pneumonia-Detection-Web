@@ -27,18 +27,6 @@ class PredictionLabel(str, enum.Enum):
     pneumonia = "PNEUMONIA"
 
 
-class EnsembleStatus(str, enum.Enum):
-    confirmed = "CONFIRMED"
-    suspected = "SUSPECTED"
-
-
-class DiseaseType(str, enum.Enum):
-    bacterial = "BACTERIAL"
-    viral = "VIRAL"
-    covid = "COVID"
-    none = "NONE"
-
-
 class ProcessingStatus(str, enum.Enum):
     queued = "queued"
     processing = "processing"
@@ -290,17 +278,6 @@ class Prediction(TimestampMixin, Base):
             self.results.prediction = value
 
     @property
-    def ensemble_status(self) -> "EnsembleStatus | None":
-        return self.results.ensemble_status if self.results else None
-
-    @ensemble_status.setter
-    def ensemble_status(self, value: "EnsembleStatus | None") -> None:
-        if self.results is None:
-            self.results = PredictionResults(ensemble_status=value)
-        else:
-            self.results.ensemble_status = value
-
-    @property
     def confidence(self) -> float | None:
         return self.results.confidence if self.results else None
 
@@ -323,59 +300,8 @@ class Prediction(TimestampMixin, Base):
             self.results.prob_dn = value
 
     @property
-    def prob_eff(self) -> float | None:
-        return self.results.prob_eff if self.results else None
-
-    @prob_eff.setter
-    def prob_eff(self, value: float | None) -> None:
-        if self.results is None:
-            self.results = PredictionResults(prob_eff=value)
-        else:
-            self.results.prob_eff = value
-
-    @property
-    def disease_type(self) -> "DiseaseType | None":
-        return self.results.disease_type if self.results else None
-
-    @disease_type.setter
-    def disease_type(self, value: "DiseaseType | None") -> None:
-        if self.results is None:
-            self.results = PredictionResults(disease_type=value)
-        else:
-            self.results.disease_type = value
-
-    @property
-    def bacterial_prob(self) -> float | None:
-        return self.results.bacterial_prob if self.results else None
-
-    @bacterial_prob.setter
-    def bacterial_prob(self, value: float | None) -> None:
-        if self.results is None:
-            self.results = PredictionResults(bacterial_prob=value)
-        else:
-            self.results.bacterial_prob = value
-
-    @property
-    def viral_prob(self) -> float | None:
-        return self.results.viral_prob if self.results else None
-
-    @viral_prob.setter
-    def viral_prob(self, value: float | None) -> None:
-        if self.results is None:
-            self.results = PredictionResults(viral_prob=value)
-        else:
-            self.results.viral_prob = value
-
-    @property
-    def covid_prob(self) -> float | None:
-        return self.results.covid_prob if self.results else None
-
-    @covid_prob.setter
-    def covid_prob(self, value: float | None) -> None:
-        if self.results is None:
-            self.results = PredictionResults(covid_prob=value)
-        else:
-            self.results.covid_prob = value
+    def probability(self) -> float | None:
+        return self.results.prob_dn if self.results else None
 
     @property
     def lesion_pct(self) -> float | None:
@@ -555,14 +481,8 @@ class PredictionResults(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     prediction_id: Mapped[int] = mapped_column(ForeignKey("predictions.id"), unique=True, nullable=False, index=True)
     prediction: Mapped[PredictionLabel | None] = mapped_column(Enum(PredictionLabel))
-    ensemble_status: Mapped[EnsembleStatus | None] = mapped_column(Enum(EnsembleStatus))
     confidence: Mapped[float | None] = mapped_column(Float)
     prob_dn: Mapped[float | None] = mapped_column(Float)
-    prob_eff: Mapped[float | None] = mapped_column(Float)
-    disease_type: Mapped[DiseaseType | None] = mapped_column(Enum(DiseaseType))
-    bacterial_prob: Mapped[float | None] = mapped_column(Float)
-    viral_prob: Mapped[float | None] = mapped_column(Float)
-    covid_prob: Mapped[float | None] = mapped_column(Float)
 
     # Relationships
     parent_prediction: Mapped["Prediction"] = relationship(back_populates="results")

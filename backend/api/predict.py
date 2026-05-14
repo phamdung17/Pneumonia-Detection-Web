@@ -11,10 +11,10 @@ from ..auth.dependencies import get_current_user
 from ..config import get_settings
 from ..database.connection import get_db
 from ..database.crud import create_prediction, get_prediction_by_id, get_prediction_by_task_id
-from ..database.models import DiseaseType, ProcessingStatus, User
+from ..database.models import ProcessingStatus, User
 from ..database.helpers import get_prediction_full, create_prediction_doctor_review, create_prediction_patient_info
 from ..models.pipeline import ensure_models_ready
-from ..schemas import ConfirmRequest, MessageResponse, NoteRequest, PatientInfoRequest, PredictionResult, PredictionTypeProbabilities, PredictionTypeResult
+from ..schemas import ConfirmRequest, MessageResponse, NoteRequest, PatientInfoRequest, PredictionResult
 from ..utils.errors import NotFoundAppError
 from ..utils.file import resolve_asset_path, save_upload_file
 from ..utils.pdf import build_prediction_pdf
@@ -29,26 +29,6 @@ from uuid import uuid4
 
 router = APIRouter(prefix='/api/predict', tags=['predict'])
 settings = get_settings()
-
-
-def build_prediction_type(prediction) -> PredictionTypeResult | None:
-    # prediction_results is now in a separate table
-    if prediction.results is None:
-        return None
-    
-    results = prediction.results
-    if results.disease_type is None and results.bacterial_prob is None and results.viral_prob is None and results.covid_prob is None:
-        return None
-
-    label = results.disease_type.value if results.disease_type else None
-    return PredictionTypeResult(
-        label=label,
-        probs=PredictionTypeProbabilities(
-            BACTERIAL=results.bacterial_prob,
-            VIRAL=results.viral_prob,
-            COVID=results.covid_prob,
-        ),
-    )
 
 
 def serialize_prediction(prediction) -> PredictionResult:
@@ -67,8 +47,6 @@ def serialize_prediction(prediction) -> PredictionResult:
     if analysis and (analysis.heatmap_dn_path or Path(prediction.file_path).with_name('heatmap.jpg').exists()):
         heatmap_url = f'/static/{prediction.task_id}/heatmap.jpg'
 
-    type_result = build_prediction_type(prediction)
-
     return PredictionResult(
         id=prediction.id,
         task_id=prediction.task_id,
@@ -80,6 +58,7 @@ def serialize_prediction(prediction) -> PredictionResult:
         performed_at=patient_info.performed_at if patient_info else None,
         prediction=results.prediction.value if results and results.prediction else None,
         confidence=results.confidence if results else None,
+        probability=results.prob_dn if results else None,
         original_url=original_url,
         heatmap_url=heatmap_url,
         doctor_note=doctor_review.doctor_note if doctor_review else None,
@@ -87,7 +66,6 @@ def serialize_prediction(prediction) -> PredictionResult:
         processing_time_ms=processing_log.processing_time_ms if processing_log else None,
         created_at=prediction.created_at,
         completed_at=processing_log.completed_at if processing_log else None,
-        type=type_result,
     )
 
 
